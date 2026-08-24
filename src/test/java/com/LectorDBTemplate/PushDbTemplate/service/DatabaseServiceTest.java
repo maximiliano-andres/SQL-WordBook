@@ -3,7 +3,9 @@ package com.LectorDBTemplate.PushDbTemplate.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -12,9 +14,14 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -100,5 +107,103 @@ class DatabaseServiceTest {
 
         assertThatThrownBy(() -> databaseService.getTableData("dbo", "TablaInventada", 10, 0, null))
                 .isInstanceOf(SecurityException.class);
+    }
+
+    // --- Filtro de filas (buildFilterCondition, vía getTableCount/getTableData) ---
+    // Se usa un spy (en vez de mockear DatabaseMetaData) para aislar la lógica de
+    // construcción segura del filtro SQL de la resolución de metadata, ya cubierta arriba.
+
+    private DatabaseService spyServiceWithColumns(DatabaseService.ColumnInfo... columns) {
+        DatabaseService spy = Mockito.spy(new DatabaseService(jdbcTemplate, 50_000, 2));
+        ReflectionTestUtils.setField(spy, "self", spy);
+        doReturn(true).when(spy).isTableValid("dbo", "Empleados");
+        doReturn(List.of(columns)).when(spy).getColumns("dbo", "Empleados");
+        return spy;
+    }
+
+    @Test
+    void getTableData_likeFilter_wrapsValueWithWildcardsAndBindsAsParam() {
+        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        spy.getTableData("dbo", "Empleados", 15, 0, null, "nombre", "LIKE", "ana", null);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForList(sql.capture(), params.capture());
+        assertThat(sql.getValue()).contains("WHERE [nombre] LIKE ?");
+        assertThat(params.getValue()).containsExactly("%ana%", 0, 15);
+    }
+
+    @Test
+    void getTableData_betweenOperator_bindsTwoParamsInOrder() {
+        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("edad", "INT", 10, true));
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        spy.getTableData("dbo", "Empleados", 15, 0, null, "edad", "BETWEEN", "18", "30");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForList(sql.capture(), params.capture());
+        assertThat(sql.getValue()).contains("WHERE [edad] BETWEEN ? AND ?");
+        assertThat(params.getValue()).containsExactly("18", "30", 0, 15);
+    }
+
+    @Test
+    void getTableData_isNullOperator_needsNoBoundValue() {
+        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("email", "VARCHAR", 100, true));
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        spy.getTableData("dbo", "Empleados", 15, 0, null, "email", "IS NULL", null, null);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForList(sql.capture(), params.capture());
+        assertThat(sql.getValue()).contains("WHERE [email] IS NULL");
+        assertThat(params.getValue()).containsExactly(0, 15);
+    }
+
+    @Test
+    void getTableData_filterColumnWithoutOperator_appliesNoFilter() {
+        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        spy.getTableData("dbo", "Empleados", 15, 0, null, "nombre", null, null, null);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sql.capture(), any(Object[].class));
+        assertThat(sql.getValue()).doesNotContain("WHERE");
+    }
+
+    @Test
+    void getTableCount_rejectsFilterColumnNotInWhitelist() {
+        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+
+        assertThatThrownBy(() -> spy.getTableCount("dbo", "Empleados", "nombre]; DROP TABLE Empleados; --", "=", "x", null))
+                .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void getTableCount_rejectsFilterOperatorNotWhitelisted() {
+        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+
+        assertThatThrownBy(() -> spy.getTableCount("dbo", "Empleados", "nombre", "1=1; DROP TABLE Empleados; --", "x", null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void getTableCount_appliesFilterCondition_andBindsParams() {
+        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+        when(jdbcTemplate.queryForObject(anyString(), org.mockito.ArgumentMatchers.eq(Long.class), any(Object[].class)))
+                .thenReturn(3L);
+
+        long count = spy.getTableCount("dbo", "Empleados", "nombre", "=", "ana", null);
+
+        assertThat(count).isEqualTo(3L);
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForObject(sql.capture(), org.mockito.ArgumentMatchers.eq(Long.class), params.capture());
+        assertThat(sql.getValue()).contains("WHERE [nombre] = ?");
+        assertThat(params.getValue()).containsExactly("ana");
     }
 }

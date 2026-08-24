@@ -49,6 +49,7 @@ export default function App() {
   const [showDbaConsole, setShowDbaConsole] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [manualTab, setManualTab] = useState('general');
+  const [appliedFilter, setAppliedFilter] = useState(null); // { column, operator, value }
 
   // --- LLAMADA API: INFORMACIÓN CONEXIÓN ---
   const fetchDbInfo = useCallback(async () => {
@@ -88,7 +89,15 @@ export default function App() {
 
     const offset = (page - 1) * limit;
     const tableKey = `${activeTable.schema}.${activeTable.name}`;
-    const dataUrl = `/api/db/tables/${encodeURIComponent(activeTable.schema)}/${encodeURIComponent(activeTable.name)}/data?limit=${limit}&offset=${offset}`;
+    let dataUrl = `/api/db/tables/${encodeURIComponent(activeTable.schema)}/${encodeURIComponent(activeTable.name)}/data?limit=${limit}&offset=${offset}`;
+    
+    if (appliedFilter && appliedFilter.column) {
+      dataUrl += `&filterColumn=${encodeURIComponent(appliedFilter.column)}&filterOperator=${encodeURIComponent(appliedFilter.operator)}&filterValue=${encodeURIComponent(appliedFilter.value)}`;
+      if (appliedFilter.value2) {
+        dataUrl += `&filterValue2=${encodeURIComponent(appliedFilter.value2)}`;
+      }
+    }
+    
     const schemaUrl = `/api/db/tables/${encodeURIComponent(activeTable.schema)}/${encodeURIComponent(activeTable.name)}/columns`;
     // Solo se necesita pedir el esquema si no está cacheado para esta tabla; se lanza en
     // paralelo con los datos (en vez de esperar a que termine /data) para no sumar su
@@ -137,7 +146,7 @@ export default function App() {
     } finally {
       setIsDataLoading(false);
     }
-  }, [activeTable, limit, page, columnsCache, loadedTableKey]);
+  }, [activeTable, limit, page, columnsCache, loadedTableKey, appliedFilter]);
 
   // 1. Cargar metadatos iniciales de conexión y tablas al montar
   useEffect(() => {
@@ -156,6 +165,7 @@ export default function App() {
   const handleSelectTable = (table) => {
     setActiveTable(table);
     setPage(1); // Reiniciar a la primera página siempre
+    setAppliedFilter(null); // Resetear el filtro al cambiar de tabla
   };
 
   // --- ACCIONES DE PAGINACIÓN ---
@@ -217,18 +227,50 @@ export default function App() {
   };
 
   // --- ACCIÓN: EXPORTAR REPORTE COMPLETO A EXCEL (.XLS) POR STREAMING ---
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!activeTable || selectedColumns.length === 0) return;
     
+    setIsDataLoading(true);
+    setError(null);
+    
     const columnsParam = selectedColumns.map(col => encodeURIComponent(col)).join(',');
-    const url = `/api/db/tables/${encodeURIComponent(activeTable.schema)}/${encodeURIComponent(activeTable.name)}/export?columns=${columnsParam}`;
+    let url = `/api/db/tables/${encodeURIComponent(activeTable.schema)}/${encodeURIComponent(activeTable.name)}/export?columns=${columnsParam}`;
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${activeTable.schema}_${activeTable.name}_report.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (appliedFilter && appliedFilter.column) {
+      url += `&filterColumn=${encodeURIComponent(appliedFilter.column)}&filterOperator=${encodeURIComponent(appliedFilter.operator)}&filterValue=${encodeURIComponent(appliedFilter.value)}`;
+      if (appliedFilter.value2) {
+        url += `&filterValue2=${encodeURIComponent(appliedFilter.value2)}`;
+      }
+    }
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        let errorMessage = 'Error al exportar el archivo.';
+        try {
+          const errJson = await response.json();
+          errorMessage = errJson.error || errorMessage;
+        } catch (e) {
+          // Si no es JSON, mantenemos el mensaje por defecto
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${activeTable.schema}_${activeTable.name}_report.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setIsDataLoading(false);
+    }
   };
 
   const handleSaveCustomFk = async (columnName, referencedSchema, referencedTable, referencedColumn, displayColumn, filterColumn, filterValue) => {
@@ -379,6 +421,8 @@ export default function App() {
         onSaveCustomFk={handleSaveCustomFk}
         onToggleFk={handleToggleFk}
         onDeleteCustomFk={handleDeleteCustomFk}
+        appliedFilter={appliedFilter}
+        onApplyFilter={(filter) => { setAppliedFilter(filter); setPage(1); }}
       />
 
       {/* Pestañas de Hojas Inferiores (Lista de Tablas) */}

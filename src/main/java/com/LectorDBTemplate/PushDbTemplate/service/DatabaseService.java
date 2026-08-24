@@ -296,22 +296,102 @@ public class DatabaseService {
         return columns;
     }
 
+    private String buildFilterCondition(
+            String schema, 
+            String tableName, 
+            String filterColumn, 
+            String filterOperator, 
+            String filterValue, 
+            String filterValue2,
+            List<Object> queryParams) {
+        
+        if (filterColumn == null || filterColumn.trim().isEmpty()) {
+            return null;
+        }
+        
+        // 1. Validar que la columna pertenece a la tabla (evita inyección SQL en la columna)
+        List<ColumnInfo> tableCols = self.getColumns(schema, tableName);
+        boolean isColValid = tableCols.stream().anyMatch(c -> c.name().equalsIgnoreCase(filterColumn));
+        if (!isColValid) {
+            throw new SecurityException("Acceso denegado: Nombre de columna no válido para el filtro: '" + filterColumn + "'");
+        }
+        
+        // 2. Validar y normalizar el operador
+        if (filterOperator == null || filterOperator.trim().isEmpty()) {
+            return null;
+        }
+        String operator = filterOperator.trim().toUpperCase(Locale.ROOT);
+        Set<String> allowedOperators = Set.of("=", "LIKE", ">", "<", ">=", "<=", "IS NULL", "IS NOT NULL", "BETWEEN");
+        if (!allowedOperators.contains(operator)) {
+            throw new IllegalArgumentException("Operador de filtro no permitido: '" + filterOperator + "'");
+        }
+        
+        // Escapar el nombre de la columna de forma segura
+        String safeColName = "[" + filterColumn.replace("]", "]]") + "]";
+        
+        // 3. Construir la condición SQL y almacenar los parámetros de consulta correspondientes
+        if (operator.equals("IS NULL") || operator.equals("IS NOT NULL")) {
+            return safeColName + " " + operator;
+        } else if (operator.equals("BETWEEN")) {
+            if (filterValue == null || filterValue2 == null) {
+                return null;
+            }
+            queryParams.add(filterValue);
+            queryParams.add(filterValue2);
+            return safeColName + " BETWEEN ? AND ?";
+        } else {
+            if (filterValue == null) {
+                return null;
+            }
+            if (operator.equals("LIKE")) {
+                queryParams.add("%" + filterValue + "%");
+            } else {
+                queryParams.add(filterValue);
+            }
+            return safeColName + " " + operator + " ?";
+        }
+    }
+
+    private String buildFilterCondition(
+            String schema, 
+            String tableName, 
+            String filterColumn, 
+            String filterOperator, 
+            String filterValue, 
+            List<Object> queryParams) {
+        return buildFilterCondition(schema, tableName, filterColumn, filterOperator, filterValue, null, queryParams);
+    }
+
     /**
      * Retorna el número total de filas de una tabla de manera segura.
      * Cacheado con TTL corto (ver application.yaml): evita recalcular un COUNT(*)
      * costoso en tablas grandes en cada cambio de página de la misma tabla.
      */
-    @Cacheable(value = "tableCount", key = "#schema + '.' + #tableName")
-    public long getTableCount(String schema, String tableName) {
+    @Cacheable(value = "tableCount", key = "#schema + '.' + #tableName", condition = "#filterColumn == null || #filterColumn.isEmpty()")
+    public long getTableCount(String schema, String tableName, String filterColumn, String filterOperator, String filterValue, String filterValue2) {
         if (!isTableValid(schema, tableName)) {
             throw new SecurityException("Acceso denegado: Esquema o tabla no válidos (" + schema + "." + tableName + ")");
         }
         // Escapado seguro con corchetes SQL Server
         String safeTableName = buildSafeTableName(schema, tableName);
+        List<Object> params = new ArrayList<>();
+        String condition = buildFilterCondition(schema, tableName, filterColumn, filterOperator, filterValue, filterValue2, params);
+        
         String sql = "SELECT COUNT(*) FROM " + safeTableName;
+        if (condition != null) {
+            sql += " WHERE " + condition;
+        }
 
-        Long count = jdbcTemplate.queryForObject(sql, Long.class);
+        Long count = jdbcTemplate.queryForObject(sql, Long.class, params.toArray());
         return count != null ? count : 0L;
+    }
+
+    public long getTableCount(String schema, String tableName, String filterColumn, String filterOperator, String filterValue) {
+        return self.getTableCount(schema, tableName, filterColumn, filterOperator, filterValue, null);
+    }
+
+    public long getTableCount(String schema, String tableName) {
+        return self.getTableCount(schema, tableName, null, null, null, null);
     }
 
     /**
@@ -319,7 +399,17 @@ public class DatabaseService {
      * Utiliza OFFSET / FETCH NEXT nativo de SQL Server. Si se solicitan columnas
      * específicas (validadas contra whitelist), proyecta solo esas en vez de SELECT *.
      */
-    public List<Map<String, Object>> getTableData(String schema, String tableName, int limit, int offset, List<String> columns) {
+    public List<Map<String, Object>> getTableData(
+            String schema, 
+            String tableName, 
+            int limit, 
+            int offset, 
+            List<String> columns,
+            String filterColumn,
+            String filterOperator,
+            String filterValue,
+            String filterValue2) {
+        
         if (!isTableValid(schema, tableName)) {
             throw new SecurityException("Acceso denegado: Esquema o tabla no válidos (" + schema + "." + tableName + ")");
         }
@@ -329,12 +419,30 @@ public class DatabaseService {
                 ? "*"
                 : buildSafeColumnList(resolveValidColumns(schema, tableName, columns));
 
+        List<Object> queryParams = new ArrayList<>();
+        String condition = buildFilterCondition(schema, tableName, filterColumn, filterOperator, filterValue, filterValue2, queryParams);
+        
+        String sql = "SELECT " + columnList + " FROM " + safeTableName;
+        if (condition != null) {
+            sql += " WHERE " + condition;
+        }
+        
         // SQL Server requiere un ORDER BY para usar OFFSET ... FETCH.
-        // Usamos ORDER BY (SELECT NULL) como truco para ordenar por el orden físico y evitar un ordenamiento pesado.
-        String sql = "SELECT " + columnList + " FROM " + safeTableName + " ORDER BY (SELECT NULL) OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+        sql += " ORDER BY (SELECT NULL) OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+        
+        queryParams.add(offset);
+        queryParams.add(limit);
 
-        log.debug("Ejecutando consulta paginada en {}.{} con limit={} y offset={}", schema, tableName, limit, offset);
-        return jdbcTemplate.queryForList(sql, offset, limit);
+        log.debug("Ejecutando consulta paginada en {}.{} con limit={} y offset={} y filtro={}", schema, tableName, limit, offset, condition);
+        return jdbcTemplate.queryForList(sql, queryParams.toArray());
+    }
+
+    public List<Map<String, Object>> getTableData(String schema, String tableName, int limit, int offset, List<String> columns, String filterColumn, String filterOperator, String filterValue) {
+        return getTableData(schema, tableName, limit, offset, columns, filterColumn, filterOperator, filterValue, null);
+    }
+
+    public List<Map<String, Object>> getTableData(String schema, String tableName, int limit, int offset, List<String> columns) {
+        return getTableData(schema, tableName, limit, offset, columns, null, null, null, null);
     }
 
     // Nombres de columna candidatos a "valor descriptivo" de una tabla, en orden de prioridad.
@@ -722,17 +830,31 @@ public class DatabaseService {
             super(message);
         }
     }
-
-    /**
-     * Exporta el reporte completo de una tabla (columnas elegidas) a un .xlsx real,
-     * transmitiendo los datos con SXSSFWorkbook (ventana de filas en memoria + volcado a
-     * disco temporal) en vez de mantener todo el libro en RAM. Comparado con el SpreadsheetML
-     * (XML sin comprimir) anterior, genera archivos varias veces más livianos y rápidos de
-     * transferir. Rechaza tablas que superen app.export.max-rows para evitar exfiltración
-     * masiva / DoS, y limita cuántas exportaciones corren en paralelo (app.export.max-concurrent)
-     * para no agotar el pool de conexiones con exportaciones largas.
-     */
     public void exportTableToExcel(String schema, String tableName, List<String> selectedColumns, java.io.OutputStream outputStream) throws Exception {
+        exportTableToExcel(schema, tableName, selectedColumns, null, null, null, null, outputStream);
+    }
+
+    public void exportTableToExcel(
+            String schema, 
+            String tableName, 
+            List<String> selectedColumns, 
+            String filterColumn,
+            String filterOperator,
+            String filterValue,
+            java.io.OutputStream outputStream) throws Exception {
+        exportTableToExcel(schema, tableName, selectedColumns, filterColumn, filterOperator, filterValue, null, outputStream);
+    }
+
+    public void exportTableToExcel(
+            String schema, 
+            String tableName, 
+            List<String> selectedColumns, 
+            String filterColumn,
+            String filterOperator,
+            String filterValue,
+            String filterValue2,
+            java.io.OutputStream outputStream) throws Exception {
+        
         if (!exportSemaphore.tryAcquire()) {
             throw new TooManyExportsException(
                 "Hay demasiadas exportaciones en curso (máximo " + maxConcurrentExports + " en paralelo permitido). " +
@@ -745,28 +867,44 @@ public class DatabaseService {
 
             List<String> validatedColumns = resolveValidColumns(schema, tableName, selectedColumns);
 
-            long totalRows = self.getTableCount(schema, tableName);
+            long totalRows = self.getTableCount(schema, tableName, filterColumn, filterOperator, filterValue, filterValue2);
             if (totalRows > maxExportRows) {
                 throw new IllegalArgumentException(
                     "La tabla contiene " + totalRows + " filas, por encima del máximo exportable de "
                         + maxExportRows + ". Aplique filtros o contacte al administrador.");
             }
 
+            List<Object> queryParams = new ArrayList<>();
+            String condition = buildFilterCondition(schema, tableName, filterColumn, filterOperator, filterValue, filterValue2, queryParams);
+
             String columnsBuilder = buildSafeColumnList(validatedColumns);
             String safeTableName = buildSafeTableName(schema, tableName);
             String sql = "SELECT " + columnsBuilder + " FROM " + safeTableName;
+            if (condition != null) {
+                sql += " WHERE " + condition;
+            }
 
-            log.info("Iniciando exportación .xlsx de reporte completo por streaming para la tabla {}.{}", schema, tableName);
+            log.info("Iniciando exportación .xlsx de reporte completo por streaming para la tabla {}.{} con filtro={} y valor2={}", schema, tableName, condition, filterValue2);
 
             // Cargar mapas de traducción de claves foráneas activas y válidas
             Map<String, Map<String, String>> fkLookups = new HashMap<>();
             try {
                 for (ForeignKeyInfo fk : self.getForeignKeys(schema, tableName)) {
                     if (fk.enabled() && isTableValid(fk.referencedSchema(), fk.referencedTable())) {
-                        String distinctSql = "SELECT DISTINCT [" + fk.fkColumn().replace("]", "]]") + "] "
-                                + "FROM " + safeTableName + " WHERE [" + fk.fkColumn().replace("]", "]]") + "] IS NOT NULL";
                         
-                        List<Object> distinctValues = jdbcTemplate.query(distinctSql, (rs, rowNum) -> rs.getObject(1))
+                        List<Object> distinctParams = new ArrayList<>();
+                        String distinctCondition = buildFilterCondition(schema, tableName, filterColumn, filterOperator, filterValue, filterValue2, distinctParams);
+                        
+                        String distinctSql = "SELECT DISTINCT [" + fk.fkColumn().replace("]", "]]") + "] "
+                                + "FROM " + safeTableName;
+                        
+                        if (distinctCondition != null) {
+                            distinctSql += " WHERE " + distinctCondition + " AND [" + fk.fkColumn().replace("]", "]]") + "] IS NOT NULL";
+                        } else {
+                            distinctSql += " WHERE [" + fk.fkColumn().replace("]", "]]") + "] IS NOT NULL";
+                        }
+                        
+                        List<Object> distinctValues = jdbcTemplate.query(distinctSql, (rs, rowNum) -> rs.getObject(1), distinctParams.toArray())
                                 .stream()
                                 .filter(Objects::nonNull)
                                 .distinct()
@@ -809,10 +947,10 @@ public class DatabaseService {
                                     + " FROM " + buildSafeTableName(fk.referencedSchema(), fk.referencedTable())
                                     + " WHERE " + buildSafeColumnList(List.of(fk.referencedColumn())) + " IN (" + placeholders + ")";
 
-                            List<Object> queryParams = new ArrayList<>(distinctValues);
+                            List<Object> lookupQueryParams = new ArrayList<>(distinctValues);
                             if (fk.filterColumn() != null && !fk.filterColumn().trim().isEmpty() && fk.filterValue() != null) {
                                 lookupSql += " AND " + buildSafeColumnList(List.of(fk.filterColumn())) + " = ?";
-                                queryParams.add(fk.filterValue());
+                                lookupQueryParams.add(fk.filterValue());
                             }
 
                             Map<String, String> lookupMap = new HashMap<>();
@@ -841,7 +979,7 @@ public class DatabaseService {
                                     lookupMap.put(kStr, translation);
                                     lookupMap.put(kStr.trim(), translation);
                                 };
-                                jdbcTemplate.query(lookupSql, handler, queryParams.toArray());
+                                jdbcTemplate.query(lookupSql, handler, lookupQueryParams.toArray());
                             } catch (Exception e) {
                                 log.error("Exportación: Error al resolver FK de la columna {} apuntando a {}.{}: {}", 
                                     fk.fkColumn(), fk.referencedSchema(), fk.referencedTable(), e.getMessage());
@@ -903,7 +1041,7 @@ public class DatabaseService {
                             }
                         }
                     }
-                });
+                }, queryParams.toArray());
 
                 workbook.write(outputStream);
                 workbook.dispose();

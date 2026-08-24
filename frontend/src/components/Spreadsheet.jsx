@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Table, FileSpreadsheet, Link2, Check, X, Edit2, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Table, FileSpreadsheet, Link2, Check, X, Edit2, Trash2, Filter } from 'lucide-react';
 import { fkStatusText } from '../utils/fk';
 
 export default function Spreadsheet({
@@ -17,7 +17,9 @@ export default function Spreadsheet({
   tables = [],
   onSaveCustomFk = () => {},
   onToggleFk = () => {},
-  onDeleteCustomFk = () => {}
+  onDeleteCustomFk = () => {},
+  appliedFilter = null,
+  onApplyFilter = () => {}
 }) {
   const [activeTab, setActiveTab] = useState('data'); // 'data' o 'schema'
   const [editingColName, setEditingColName] = useState(null);
@@ -28,6 +30,63 @@ export default function Spreadsheet({
   const [selectedFilterColumn, setSelectedFilterColumn] = useState("");
   const [filterValueText, setFilterValueText] = useState("");
   const [schemaSearchQuery, setSchemaSearchQuery] = useState("");
+
+  // Estados locales para el panel de filtrado de filas
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [tempFilterColumn, setTempFilterColumn] = useState("");
+  const [tempFilterOperator, setTempFilterOperator] = useState("LIKE");
+  const [tempFilterValue, setTempFilterValue] = useState("");
+  const [tempFilterValue2, setTempFilterValue2] = useState("");
+
+  useEffect(() => {
+    if (columns.length > 0) {
+      setTempFilterColumn(columns[0].name);
+    }
+  }, [columns]);
+
+  // Al cambiar de tabla se resetea también el resto del panel (operador/valores/visibilidad):
+  // de lo contrario quedaban valores de la tabla anterior aplicables por error a la nueva.
+  useEffect(() => {
+    setTempFilterOperator('LIKE');
+    setTempFilterValue('');
+    setTempFilterValue2('');
+    setShowFilterPanel(false);
+  }, [activeTable]);
+
+  const isUnaryOperator = (op) => {
+    return op === 'IS NULL' || op === 'IS NOT NULL';
+  };
+
+  const getOperatorLabel = (op) => {
+    switch (op) {
+      case 'LIKE': return 'contiene';
+      case '=': return 'igual a';
+      case '>': return 'mayor que';
+      case '<': return 'menor que';
+      case '>=': return 'mayor o igual que';
+      case '<=': return 'menor o igual que';
+      case 'IS NULL': return 'está vacío';
+      case 'IS NOT NULL': return 'no está vacío';
+      case 'BETWEEN': return 'está entre';
+      default: return op;
+    }
+  };
+
+  const handleApplyFilter = () => {
+    if (!tempFilterColumn) return;
+    onApplyFilter({
+      column: tempFilterColumn,
+      operator: tempFilterOperator,
+      value: isUnaryOperator(tempFilterOperator) ? '' : tempFilterValue,
+      value2: tempFilterOperator === 'BETWEEN' ? tempFilterValue2 : ''
+    });
+  };
+
+  const handleClearFilter = () => {
+    setTempFilterValue('');
+    setTempFilterValue2('');
+    onApplyFilter(null);
+  };
 
   const normalizeString = (str) => {
     if (!str) return "";
@@ -132,6 +191,166 @@ export default function Spreadsheet({
           </button>
         </div>
       </div>
+
+      {activeTab === 'data' && (
+        <div className="filter-section" style={{ borderBottom: '1px solid var(--excel-border)', padding: '10px 16px', backgroundColor: 'var(--excel-bg-sidebar)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button 
+                className={`excel-btn ${showFilterPanel ? 'primary' : ''}`}
+                onClick={() => {
+                  setShowFilterPanel(!showFilterPanel);
+                  if (!tempFilterColumn && columns.length > 0) {
+                    setTempFilterColumn(columns[0].name);
+                  }
+                }}
+                title="Abrir o cerrar el panel de filtros de fila"
+              >
+                <Filter size={14} />
+                {showFilterPanel ? 'Ocultar Filtros' : 'Filtrar Registros'}
+              </button>
+
+              {appliedFilter && appliedFilter.column && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#e2f0d9', border: '1px solid #a9d08e', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', color: '#385723', fontWeight: '500' }}>
+                  <span>
+                    Filtro activo: <strong>{appliedFilter.column}</strong> {getOperatorLabel(appliedFilter.operator)}{' '}
+                    {appliedFilter.operator === 'BETWEEN'
+                      ? `"${appliedFilter.value}" y "${appliedFilter.value2}"`
+                      : !isUnaryOperator(appliedFilter.operator) && `"${appliedFilter.value}"`}
+                  </span>
+                  <button 
+                    onClick={handleClearFilter}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', color: '#c00000' }}
+                    title="Eliminar filtro activo"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {appliedFilter && appliedFilter.column && (
+              <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                Mostrando {data.length} de {totalRows} registros coincidentes.
+              </span>
+            )}
+          </div>
+
+          {showFilterPanel && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'var(--excel-border)', padding: '12px', borderRadius: '4px', flexWrap: 'wrap', border: '1px solid var(--excel-border)' }}>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Columna:</span>
+                <select 
+                  className="excel-input"
+                  style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '150px' }}
+                  value={tempFilterColumn}
+                  onChange={(e) => setTempFilterColumn(e.target.value)}
+                >
+                  {columns.map(col => (
+                    <option key={col.name} value={col.name}>{col.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Condición:</span>
+                <select 
+                  className="excel-input"
+                  style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '150px' }}
+                  value={tempFilterOperator}
+                  onChange={(e) => setTempFilterOperator(e.target.value)}
+                >
+                  <option value="LIKE">Contiene (texto)</option>
+                  <option value="=">Igual a (=)</option>
+                  <option value="BETWEEN">Entre (rango)</option>
+                  <option value=">">Mayor que (&gt;)</option>
+                  <option value="<">Menor que (&lt;)</option>
+                  <option value=">=">Mayor o igual (&ge;)</option>
+                  <option value="<=">Menor o igual (&le;)</option>
+                  <option value="IS NULL">Vacío (NULL)</option>
+                  <option value="IS NOT NULL">No Vacío (NOT NULL)</option>
+                </select>
+              </div>
+
+              {tempFilterOperator === 'BETWEEN' ? (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Desde:</span>
+                    <input 
+                      type="text" 
+                      className="excel-input"
+                      style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '120px', cursor: 'text' }}
+                      placeholder="Valor inicial..."
+                      value={tempFilterValue}
+                      onChange={(e) => setTempFilterValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleApplyFilter();
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Hasta:</span>
+                    <input 
+                      type="text" 
+                      className="excel-input"
+                      style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '120px', cursor: 'text' }}
+                      placeholder="Valor final..."
+                      value={tempFilterValue2}
+                      onChange={(e) => setTempFilterValue2(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleApplyFilter();
+                      }}
+                    />
+                  </div>
+                </>
+              ) : !isUnaryOperator(tempFilterOperator) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Valor:</span>
+                  <input 
+                    type="text" 
+                    className="excel-input"
+                    style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '180px', cursor: 'text' }}
+                    placeholder="Ej: valor de búsqueda..."
+                    value={tempFilterValue}
+                    onChange={(e) => setTempFilterValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleApplyFilter();
+                    }}
+                  />
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px', alignSelf: 'flex-end', marginTop: '16px' }}>
+                <button 
+                  className="excel-btn primary"
+                  style={{ height: '30px', padding: '0 16px', fontSize: '12px', backgroundColor: 'var(--excel-green)', borderColor: 'var(--excel-green)' }}
+                  onClick={handleApplyFilter}
+                  disabled={
+                    !tempFilterColumn || 
+                    (tempFilterOperator === 'BETWEEN' && (tempFilterValue.trim() === '' || tempFilterValue2.trim() === '')) ||
+                    (!isUnaryOperator(tempFilterOperator) && tempFilterOperator !== 'BETWEEN' && tempFilterValue.trim() === '')
+                  }
+                  title="Aplicar la condición de filtro activa sobre los datos"
+                >
+                  Aplicar Filtro
+                </button>
+                <button 
+                  className="excel-btn"
+                  style={{ height: '30px', padding: '0 12px', fontSize: '12px' }}
+                  onClick={handleClearFilter}
+                  title="Restablecer filtros y mostrar todos los registros"
+                >
+                  Limpiar
+                </button>
+              </div>
+
+            </div>
+          )}
+
+        </div>
+      )}
 
       {/* Grid Principal */}
       <div className="grid-wrapper">

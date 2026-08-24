@@ -85,14 +85,18 @@ public class DatabaseController {
             @PathVariable String name,
             @RequestParam(defaultValue = "15") int limit,
             @RequestParam(defaultValue = "0") int offset,
-            @RequestParam(required = false) List<String> columns) {
+            @RequestParam(required = false) List<String> columns,
+            @RequestParam(required = false) String filterColumn,
+            @RequestParam(required = false) String filterOperator,
+            @RequestParam(required = false) String filterValue,
+            @RequestParam(required = false) String filterValue2) {
 
         // Limita a valores seguros (máximo 100 registros por llamada)
         int safeLimit = Math.max(1, Math.min(limit, 100));
         int safeOffset = Math.max(0, offset);
 
-        long totalRows = databaseService.getTableCount(schema, name);
-        List<Map<String, Object>> data = databaseService.getTableData(schema, name, safeLimit, safeOffset, columns);
+        long totalRows = databaseService.getTableCount(schema, name, filterColumn, filterOperator, filterValue, filterValue2);
+        List<Map<String, Object>> data = databaseService.getTableData(schema, name, safeLimit, safeOffset, columns, filterColumn, filterOperator, filterValue, filterValue2);
         DatabaseService.ForeignKeyResolution fkResolution = databaseService.resolveForeignKeys(schema, name, data);
 
         int currentPage = (safeLimit == 0) ? 1 : (safeOffset / safeLimit) + 1;
@@ -118,14 +122,22 @@ public class DatabaseController {
             @PathVariable String schema,
             @PathVariable String name,
             @RequestParam List<String> columns,
+            @RequestParam(required = false) String filterColumn,
+            @RequestParam(required = false) String filterOperator,
+            @RequestParam(required = false) String filterValue,
+            @RequestParam(required = false) String filterValue2,
             jakarta.servlet.http.HttpServletResponse response) throws Exception {
 
         // Configurar respuesta para descarga de archivo Excel (.xlsx)
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         String filename = schema + "_" + name + "_report.xlsx";
-        response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+        
+        org.springframework.http.ContentDisposition contentDisposition = org.springframework.http.ContentDisposition.builder("attachment")
+                .filename(filename, java.nio.charset.StandardCharsets.UTF_8)
+                .build();
+        response.setHeader(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
 
-        databaseService.exportTableToExcel(schema, name, columns, response.getOutputStream());
+        databaseService.exportTableToExcel(schema, name, columns, filterColumn, filterOperator, filterValue, filterValue2, response.getOutputStream());
     }
 
     /**
