@@ -1,0 +1,13 @@
+target/
+build/
+.mvn/wrapper/maven-wrapper.jar
+frontend/node_modules/
+frontend/dist/
+.env
+.env.*
+!.env.example
+.git/
+.idea/
+.vscode/
+*.iml
+custom-fks.json

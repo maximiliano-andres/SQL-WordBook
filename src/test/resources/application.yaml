@@ -1,0 +1,13 @@
+# Configuración solo para tests: valores por defecto para que el contexto
+# de Spring resuelva las propiedades obligatorias (app.security.*, credenciales
+# de datasource) sin depender de un .env local. No usar estos valores fuera de test.
+app:
+  security:
+    username: test-user
+    password: test-pass
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=CL3530BD01MAP;encrypt=true;trustServerCertificate=true}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:TuPassword123!}

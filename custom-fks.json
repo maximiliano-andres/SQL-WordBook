@@ -1,0 +1,34 @@
+{
+  "dbo.maestro empleados" : [ {
+    "fkColumn" : "Empresa",
+    "referencedSchema" : "dbo",
+    "referencedTable" : "Empresas",
+    "referencedColumn" : "id empresa",
+    "displayColumn" : "razon social",
+    "filterColumn" : null,
+    "filterValue" : null,
+    "enabled" : true,
+    "custom" : true
+  }, {
+    "fkColumn" : "Cargo",
+    "referencedSchema" : "dbo",
+    "referencedTable" : "Tablas generales",
+    "referencedColumn" : "codigo elemento",
+    "displayColumn" : "descripcion",
+    "filterColumn" : "codigo tablas",
+    "filterValue" : "CARGOS (3)",
+    "enabled" : true,
+    "custom" : true
+  } ],
+  "dbo.proceso" : [ {
+    "fkColumn" : "id empresa",
+    "referencedSchema" : "dbo",
+    "referencedTable" : "Empresas",
+    "referencedColumn" : "id empresa",
+    "displayColumn" : null,
+    "filterColumn" : null,
+    "filterValue" : null,
+    "enabled" : true,
+    "custom" : true
+  } ]
+}

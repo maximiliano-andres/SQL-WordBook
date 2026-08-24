@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: PushDbTemplate
+  config:
+    import: "optional:file:.env[.properties]"
+  datasource:
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=CL3530BD01MAP;encrypt=true;trustServerCertificate=true}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+      leak-detection-threshold: 2000
+      pool-name: SqlServerHikariCP
+      # Optimización adicional del driver JDBC para SQL Server
+      data-source-properties:
+        sendStringParametersAsUnicode: false # Mejora el rendimiento del índice al buscar cadenas de caracteres que no son unicode
+        cachePrepStmts: true
+        prepStmtCacheSize: 250
+        prepStmtCacheSqlLimit: 2048
+        useServerPrepStmts: true
+  cache:
+    type: caffeine
+    cache-names:
+      - tables
+      - columns
+      - foreignKeys
+      - fkDisplayColumn
+      - tableCount
+    caffeine:
+      spec: expireAfterWrite=60s,maximumSize=200
+
+server:
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/plain,text/css,application/javascript
+    min-response-size: 1024
+
+# Credenciales HTTP Basic obligatorias para proteger /api/** (ver .env.example)
+app:
+  security:
+    username: ${APP_USER}
+    password: ${APP_PASSWORD}
+  export:
+    max-rows: ${EXPORT_MAX_ROWS:50000}
+    # Exportaciones completas mantienen una conexión del pool ocupada durante todo el streaming;
+    # se limita la concurrencia para no agotar el pool de HikariCP (ver DatabaseService.exportSemaphore).
+    max-concurrent: ${EXPORT_MAX_CONCURRENT:2}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
