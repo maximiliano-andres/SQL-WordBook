@@ -1,8 +1,13 @@
 package com.LectorDBTemplate.PushDbTemplate.controller;
 
 import com.LectorDBTemplate.PushDbTemplate.config.SecurityConfig;
-import com.LectorDBTemplate.PushDbTemplate.service.DatabaseService;
-import com.LectorDBTemplate.PushDbTemplate.service.DatabaseService.TableInfo;
+import com.LectorDBTemplate.PushDbTemplate.service.CustomReportService;
+import com.LectorDBTemplate.PushDbTemplate.service.DatabaseDiagnosticsService;
+import com.LectorDBTemplate.PushDbTemplate.service.ExcelExportService;
+import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService;
+import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.ForeignKeyResolution;
+import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService;
+import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService.TableInfo;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -24,7 +29,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Slice test del controller: verifica que /api/db/** exige autenticación
  * (hallazgo crítico de la auditoría) y que las excepciones de seguridad
- * del servicio se traducen al código HTTP correcto.
+ * de los servicios se traducen al código HTTP correcto.
+ *
+ * El controller ahora depende de 5 servicios especializados en vez de una sola
+ * DatabaseService (ver auditoría, hallazgo F6), así que cada uno se mockea por separado.
  */
 @WebMvcTest(controllers = DatabaseController.class)
 @Import(SecurityConfig.class)
@@ -38,7 +46,15 @@ class DatabaseControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private DatabaseService databaseService;
+    private SchemaMetadataService schemaMetadataService;
+    @MockitoBean
+    private ForeignKeyService foreignKeyService;
+    @MockitoBean
+    private CustomReportService customReportService;
+    @MockitoBean
+    private ExcelExportService excelExportService;
+    @MockitoBean
+    private DatabaseDiagnosticsService databaseDiagnosticsService;
 
     @Test
     void tablesEndpoint_withoutCredentials_returns401() throws Exception {
@@ -48,7 +64,7 @@ class DatabaseControllerTest {
 
     @Test
     void tablesEndpoint_withValidCredentials_returns200() throws Exception {
-        when(databaseService.getTables()).thenReturn(List.of(new TableInfo("dbo", "Empleados")));
+        when(schemaMetadataService.getTables()).thenReturn(List.of(new TableInfo("dbo", "Empleados")));
 
         mockMvc.perform(get("/api/db/tables")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("test-user", "test-pass")))
@@ -64,7 +80,7 @@ class DatabaseControllerTest {
 
     @Test
     void columnsEndpoint_whenServiceRejectsTable_returns403() throws Exception {
-        when(databaseService.getColumns("dbo", "TablaInventada"))
+        when(schemaMetadataService.getColumns("dbo", "TablaInventada"))
                 .thenThrow(new SecurityException("Acceso denegado"));
 
         mockMvc.perform(get("/api/db/tables/dbo/TablaInventada/columns")
@@ -74,11 +90,11 @@ class DatabaseControllerTest {
 
     @Test
     void dataEndpoint_withValidFilterParams_returns200() throws Exception {
-        when(databaseService.getTableCount("dbo", "Empleados", "nombre", "LIKE", "ana", null)).thenReturn(1L);
-        when(databaseService.getTableData("dbo", "Empleados", 15, 0, null, "nombre", "LIKE", "ana", null))
+        when(schemaMetadataService.getTableCount("dbo", "Empleados", "nombre", "LIKE", "ana", null)).thenReturn(1L);
+        when(schemaMetadataService.getTableData("dbo", "Empleados", 15, 0, null, "nombre", "LIKE", "ana", null))
                 .thenReturn(List.of(Map.of("nombre", "ana")));
-        when(databaseService.resolveForeignKeys(eq("dbo"), eq("Empleados"), any()))
-                .thenReturn(new DatabaseService.ForeignKeyResolution(List.of(), Map.of()));
+        when(foreignKeyService.resolveForeignKeys(eq("dbo"), eq("Empleados"), any()))
+                .thenReturn(new ForeignKeyResolution(List.of(), Map.of()));
 
         mockMvc.perform(get("/api/db/tables/dbo/Empleados/data")
                         .param("filterColumn", "nombre")
@@ -90,7 +106,7 @@ class DatabaseControllerTest {
 
     @Test
     void dataEndpoint_whenFilterColumnRejectedByService_returns403() throws Exception {
-        when(databaseService.getTableCount(eq("dbo"), eq("Empleados"), eq("nombre]; DROP TABLE Empleados; --"), any(), any(), any()))
+        when(schemaMetadataService.getTableCount(eq("dbo"), eq("Empleados"), eq("nombre]; DROP TABLE Empleados; --"), any(), any(), any()))
                 .thenThrow(new SecurityException("Acceso denegado: Nombre de columna no válido para el filtro"));
 
         mockMvc.perform(get("/api/db/tables/dbo/Empleados/data")
@@ -103,7 +119,7 @@ class DatabaseControllerTest {
 
     @Test
     void dataEndpoint_whenFilterOperatorRejectedByService_returns400() throws Exception {
-        when(databaseService.getTableCount(eq("dbo"), eq("Empleados"), eq("nombre"), eq("1=1; DROP TABLE Empleados; --"), any(), any()))
+        when(schemaMetadataService.getTableCount(eq("dbo"), eq("Empleados"), eq("nombre"), eq("1=1; DROP TABLE Empleados; --"), any(), any()))
                 .thenThrow(new IllegalArgumentException("Operador de filtro no permitido"));
 
         mockMvc.perform(get("/api/db/tables/dbo/Empleados/data")

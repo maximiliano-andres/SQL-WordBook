@@ -55,6 +55,18 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-jdbc</artifactId>
 		</dependency>
+		<!-- Versiona el esquema propio de la aplicación (dbo.push_custom_fks, dbo.push_custom_reports)
+		     en vez de crearlo con DDL condicional embebido en código Java (ver auditoría F7).
+		     Spring Boot 4 modulariza la autoconfiguración de Flyway en este starter separado
+		     (spring-boot-flyway) en vez de traerla siempre en spring-boot-autoconfigure. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-flyway</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-sqlserver</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>

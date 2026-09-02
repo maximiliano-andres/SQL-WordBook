@@ -18,6 +18,10 @@ COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 RUN ./mvnw -B -q dependency:go-offline
 COPY src/ src/
+# COPY no borra archivos preexistentes: sin este rm, cada build sucesivo de esta
+# imagen acumularía los bundles con hash de la build anterior en vez de
+# reemplazarlos (ver auditoría F5).
+RUN rm -rf src/main/resources/static/assets
 COPY --from=frontend-build /app/frontend/dist/ src/main/resources/static/
 RUN ./mvnw -B -q clean package -DskipTests
 

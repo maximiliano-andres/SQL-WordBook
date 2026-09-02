@@ -27,9 +27,12 @@ import static org.mockito.Mockito.when;
 /**
  * Pruebas unitarias puras (sin contexto Spring ni base de datos real) de la
  * validación por whitelist que protege contra inyección SQL.
+ *
+ * Antes vivía en DatabaseServiceTest, cuando esto y el resto de la app compartían una sola
+ * DatabaseService de ~1.700 líneas (ver auditoría, hallazgo F6).
  */
 @ExtendWith(MockitoExtension.class)
-class DatabaseServiceTest {
+class SchemaMetadataServiceTest {
 
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private DataSource dataSource;
@@ -37,14 +40,14 @@ class DatabaseServiceTest {
     @Mock private DatabaseMetaData metaData;
     @Mock private ResultSet tablesResultSet;
 
-    private DatabaseService databaseService;
+    private SchemaMetadataService schemaMetadataService;
 
     @BeforeEach
     void setUp() {
-        databaseService = new DatabaseService(jdbcTemplate, 50_000, 2);
-        // En producción Spring inyecta el proxy cacheado en el campo "self";
-        // en el test lo apuntamos a la propia instancia (sin caché real, mismo comportamiento funcional).
-        ReflectionTestUtils.setField(databaseService, "self", databaseService);
+        schemaMetadataService = new SchemaMetadataService(jdbcTemplate);
+        // En producción Spring inyecta el proxy cacheado en el campo "self"; en el test lo
+        // apuntamos a la propia instancia (sin caché real, mismo comportamiento funcional).
+        ReflectionTestUtils.setField(schemaMetadataService, "self", schemaMetadataService);
     }
 
     private void mockTables(String schema, String name) throws Exception {
@@ -62,34 +65,34 @@ class DatabaseServiceTest {
     void isTableValid_returnsTrue_forTableReturnedByMetadata() throws Exception {
         mockTables("dbo", "Empleados");
 
-        assertThat(databaseService.isTableValid("dbo", "Empleados")).isTrue();
+        assertThat(schemaMetadataService.isTableValid("dbo", "Empleados")).isTrue();
     }
 
     @Test
     void isTableValid_isCaseInsensitive() throws Exception {
         mockTables("dbo", "Empleados");
 
-        assertThat(databaseService.isTableValid("DBO", "empleados")).isTrue();
+        assertThat(schemaMetadataService.isTableValid("DBO", "empleados")).isTrue();
     }
 
     @Test
     void isTableValid_returnsFalse_forTableNotInWhitelist() throws Exception {
         mockTables("dbo", "Empleados");
 
-        assertThat(databaseService.isTableValid("dbo", "Usuarios; DROP TABLE Empleados; --")).isFalse();
+        assertThat(schemaMetadataService.isTableValid("dbo", "Usuarios; DROP TABLE Empleados; --")).isFalse();
     }
 
     @Test
     void isTableValid_returnsFalse_forNullSchemaOrName() {
-        assertThat(databaseService.isTableValid(null, "Empleados")).isFalse();
-        assertThat(databaseService.isTableValid("dbo", null)).isFalse();
+        assertThat(schemaMetadataService.isTableValid(null, "Empleados")).isFalse();
+        assertThat(schemaMetadataService.isTableValid("dbo", null)).isFalse();
     }
 
     @Test
     void getColumns_rejectsTableNotInWhitelist() throws Exception {
         mockTables("dbo", "Empleados");
 
-        assertThatThrownBy(() -> databaseService.getColumns("dbo", "TablaInventada"))
+        assertThatThrownBy(() -> schemaMetadataService.getColumns("dbo", "TablaInventada"))
                 .isInstanceOf(SecurityException.class);
     }
 
@@ -97,7 +100,7 @@ class DatabaseServiceTest {
     void getTableCount_rejectsTableNotInWhitelist() throws Exception {
         mockTables("dbo", "Empleados");
 
-        assertThatThrownBy(() -> databaseService.getTableCount("dbo", "TablaInventada"))
+        assertThatThrownBy(() -> schemaMetadataService.getTableCount("dbo", "TablaInventada"))
                 .isInstanceOf(SecurityException.class);
     }
 
@@ -105,7 +108,7 @@ class DatabaseServiceTest {
     void getTableData_rejectsTableNotInWhitelist() throws Exception {
         mockTables("dbo", "Empleados");
 
-        assertThatThrownBy(() -> databaseService.getTableData("dbo", "TablaInventada", 10, 0, null))
+        assertThatThrownBy(() -> schemaMetadataService.getTableData("dbo", "TablaInventada", 10, 0, null))
                 .isInstanceOf(SecurityException.class);
     }
 
@@ -113,8 +116,8 @@ class DatabaseServiceTest {
     // Se usa un spy (en vez de mockear DatabaseMetaData) para aislar la lógica de
     // construcción segura del filtro SQL de la resolución de metadata, ya cubierta arriba.
 
-    private DatabaseService spyServiceWithColumns(DatabaseService.ColumnInfo... columns) {
-        DatabaseService spy = Mockito.spy(new DatabaseService(jdbcTemplate, 50_000, 2));
+    private SchemaMetadataService spyServiceWithColumns(SchemaMetadataService.ColumnInfo... columns) {
+        SchemaMetadataService spy = Mockito.spy(new SchemaMetadataService(jdbcTemplate));
         ReflectionTestUtils.setField(spy, "self", spy);
         doReturn(true).when(spy).isTableValid("dbo", "Empleados");
         doReturn(List.of(columns)).when(spy).getColumns("dbo", "Empleados");
@@ -123,7 +126,7 @@ class DatabaseServiceTest {
 
     @Test
     void getTableData_likeFilter_wrapsValueWithWildcardsAndBindsAsParam() {
-        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+        SchemaMetadataService spy = spyServiceWithColumns(new SchemaMetadataService.ColumnInfo("nombre", "VARCHAR", 100, true));
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
 
         spy.getTableData("dbo", "Empleados", 15, 0, null, "nombre", "LIKE", "ana", null);
@@ -137,7 +140,7 @@ class DatabaseServiceTest {
 
     @Test
     void getTableData_betweenOperator_bindsTwoParamsInOrder() {
-        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("edad", "INT", 10, true));
+        SchemaMetadataService spy = spyServiceWithColumns(new SchemaMetadataService.ColumnInfo("edad", "INT", 10, true));
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
 
         spy.getTableData("dbo", "Empleados", 15, 0, null, "edad", "BETWEEN", "18", "30");
@@ -151,7 +154,7 @@ class DatabaseServiceTest {
 
     @Test
     void getTableData_isNullOperator_needsNoBoundValue() {
-        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("email", "VARCHAR", 100, true));
+        SchemaMetadataService spy = spyServiceWithColumns(new SchemaMetadataService.ColumnInfo("email", "VARCHAR", 100, true));
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
 
         spy.getTableData("dbo", "Empleados", 15, 0, null, "email", "IS NULL", null, null);
@@ -165,7 +168,7 @@ class DatabaseServiceTest {
 
     @Test
     void getTableData_filterColumnWithoutOperator_appliesNoFilter() {
-        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+        SchemaMetadataService spy = spyServiceWithColumns(new SchemaMetadataService.ColumnInfo("nombre", "VARCHAR", 100, true));
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
 
         spy.getTableData("dbo", "Empleados", 15, 0, null, "nombre", null, null, null);
@@ -177,7 +180,7 @@ class DatabaseServiceTest {
 
     @Test
     void getTableCount_rejectsFilterColumnNotInWhitelist() {
-        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+        SchemaMetadataService spy = spyServiceWithColumns(new SchemaMetadataService.ColumnInfo("nombre", "VARCHAR", 100, true));
 
         assertThatThrownBy(() -> spy.getTableCount("dbo", "Empleados", "nombre]; DROP TABLE Empleados; --", "=", "x", null))
                 .isInstanceOf(SecurityException.class);
@@ -185,7 +188,7 @@ class DatabaseServiceTest {
 
     @Test
     void getTableCount_rejectsFilterOperatorNotWhitelisted() {
-        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+        SchemaMetadataService spy = spyServiceWithColumns(new SchemaMetadataService.ColumnInfo("nombre", "VARCHAR", 100, true));
 
         assertThatThrownBy(() -> spy.getTableCount("dbo", "Empleados", "nombre", "1=1; DROP TABLE Empleados; --", "x", null))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -193,7 +196,7 @@ class DatabaseServiceTest {
 
     @Test
     void getTableCount_appliesFilterCondition_andBindsParams() {
-        DatabaseService spy = spyServiceWithColumns(new DatabaseService.ColumnInfo("nombre", "VARCHAR", 100, true));
+        SchemaMetadataService spy = spyServiceWithColumns(new SchemaMetadataService.ColumnInfo("nombre", "VARCHAR", 100, true));
         when(jdbcTemplate.queryForObject(anyString(), org.mockito.ArgumentMatchers.eq(Long.class), any(Object[].class)))
                 .thenReturn(3L);
 

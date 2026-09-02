@@ -4,6 +4,13 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Build del frontend (Vite) ###
+# Directorio de salida con hash de contenido (index-<hash>.js/css): cada build
+# genera nombres nuevos y, si se versionan, los anteriores quedan huérfanos
+# para siempre (ver auditoría F5). index.html sí se versiona (permite levantar
+# el JAR sin tener que compilar el frontend primero).
+src/main/resources/static/assets/
+
 ### Secretos ###
 .env
 .env.*

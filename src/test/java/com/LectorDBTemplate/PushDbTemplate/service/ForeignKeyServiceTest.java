@@ -1,16 +1,18 @@
 package com.LectorDBTemplate.PushDbTemplate.service;
 
-import com.LectorDBTemplate.PushDbTemplate.service.DatabaseService.ColumnInfo;
-import com.LectorDBTemplate.PushDbTemplate.service.DatabaseService.FkCellResolution;
-import com.LectorDBTemplate.PushDbTemplate.service.DatabaseService.FkStatus;
-import com.LectorDBTemplate.PushDbTemplate.service.DatabaseService.ForeignKeyInfo;
-import com.LectorDBTemplate.PushDbTemplate.service.DatabaseService.ForeignKeyResolution;
-import com.LectorDBTemplate.PushDbTemplate.service.DatabaseService.TableInfo;
+import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.FkCellResolution;
+import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.FkStatus;
+import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.ForeignKeyInfo;
+import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.ForeignKeyResolution;
+import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService.ColumnInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -34,26 +36,35 @@ import static org.mockito.Mockito.when;
  * Pruebas de la resolución automática de Foreign Keys: detección por metadata real
  * (DatabaseMetaData.getImportedKeys), heurística de columna descriptiva, y clasificación
  * de estados (RESOLVED/NULL/ORPHAN) en la resolución por lote.
+ *
+ * A diferencia de la versión anterior (DatabaseServiceForeignKeyTest, cuando todo esto vivía
+ * en una sola DatabaseService), isTableValid()/getColumns() ahora son llamadas reales a un
+ * SchemaMetadataService inyectado — se mockean directamente en vez de simular
+ * DatabaseMetaData.getTables() para el whitelisting (ver auditoría, hallazgo F6).
  */
 @ExtendWith(MockitoExtension.class)
-class DatabaseServiceForeignKeyTest {
+@MockitoSettings(strictness = Strictness.LENIENT)
+class ForeignKeyServiceTest {
 
     @Mock private JdbcTemplate jdbcTemplate;
+    @Mock private SchemaMetadataService schemaMetadataService;
+    @Mock private CacheManager cacheManager;
     @Mock private DataSource dataSource;
     @Mock private Connection connection;
     @Mock private DatabaseMetaData metaData;
 
-    private DatabaseService databaseService;
+    private ForeignKeyService foreignKeyService;
 
     @BeforeEach
     void setUp() {
-        databaseService = new DatabaseService(jdbcTemplate, 50_000, 2);
+        foreignKeyService = new ForeignKeyService(jdbcTemplate, schemaMetadataService, cacheManager);
+        ReflectionTestUtils.setField(foreignKeyService, "self", foreignKeyService);
     }
 
     @Test
     void getForeignKeys_detectsSingleColumnFk_fromRealMetadata() throws Exception {
-        ReflectionTestUtils.setField(databaseService, "self", databaseService);
-        mockTablesWhitelist(new TableInfo("dbo", "empleado"));
+        when(schemaMetadataService.isTableValid("dbo", "empleado")).thenReturn(true);
+        mockConnectionMetadata();
 
         ResultSet importedKeysRs = mock(ResultSet.class);
         when(metaData.getImportedKeys(null, "dbo", "empleado")).thenReturn(importedKeysRs);
@@ -64,15 +75,15 @@ class DatabaseServiceForeignKeyTest {
         when(importedKeysRs.getString("PKTABLE_NAME")).thenReturn("departamento");
         when(importedKeysRs.getString("PKCOLUMN_NAME")).thenReturn("id");
 
-        List<ForeignKeyInfo> fks = databaseService.getForeignKeys("dbo", "empleado");
+        List<ForeignKeyInfo> fks = foreignKeyService.getForeignKeys("dbo", "empleado");
 
         assertThat(fks).containsExactly(new ForeignKeyInfo("departamento_id", "dbo", "departamento", "id"));
     }
 
     @Test
     void getForeignKeys_skipsCompositeForeignKeys() throws Exception {
-        ReflectionTestUtils.setField(databaseService, "self", databaseService);
-        mockTablesWhitelist(new TableInfo("dbo", "detalle_pedido"));
+        when(schemaMetadataService.isTableValid("dbo", "detalle_pedido")).thenReturn(true);
+        mockConnectionMetadata();
 
         ResultSet importedKeysRs = mock(ResultSet.class);
         when(metaData.getImportedKeys(null, "dbo", "detalle_pedido")).thenReturn(importedKeysRs);
@@ -84,64 +95,56 @@ class DatabaseServiceForeignKeyTest {
         when(importedKeysRs.getString("PKTABLE_NAME")).thenReturn("pedido_linea", "pedido_linea");
         when(importedKeysRs.getString("PKCOLUMN_NAME")).thenReturn("pedido_id", "linea_id");
 
-        List<ForeignKeyInfo> fks = databaseService.getForeignKeys("dbo", "detalle_pedido");
+        List<ForeignKeyInfo> fks = foreignKeyService.getForeignKeys("dbo", "detalle_pedido");
 
         assertThat(fks).isEmpty();
     }
 
     @Test
     void resolveDisplayColumn_prefersPriorityNamedColumn_overEarlierTextColumn() {
-        DatabaseService selfMock = mock(DatabaseService.class);
-        ReflectionTestUtils.setField(databaseService, "self", selfMock);
-        when(selfMock.getColumns("dbo", "departamento")).thenReturn(List.of(
+        when(schemaMetadataService.getColumns("dbo", "departamento")).thenReturn(List.of(
                 new ColumnInfo("id", "INT", 4, false),
                 new ColumnInfo("codigo", "VARCHAR", 10, true),
                 new ColumnInfo("nombre", "VARCHAR", 100, true)
         ));
 
-        String display = databaseService.resolveDisplayColumn("dbo", "departamento", "id");
+        String display = foreignKeyService.resolveDisplayColumn("dbo", "departamento", "id");
 
         assertThat(display).isEqualTo("nombre");
     }
 
     @Test
     void resolveDisplayColumn_fallsBackToFirstTextColumn_whenNoPriorityNameMatches() {
-        DatabaseService selfMock = mock(DatabaseService.class);
-        ReflectionTestUtils.setField(databaseService, "self", selfMock);
-        when(selfMock.getColumns("dbo", "departamento")).thenReturn(List.of(
+        when(schemaMetadataService.getColumns("dbo", "departamento")).thenReturn(List.of(
                 new ColumnInfo("id", "INT", 4, false),
                 new ColumnInfo("codigo", "VARCHAR", 10, true),
                 new ColumnInfo("activo", "BIT", 1, false)
         ));
 
-        String display = databaseService.resolveDisplayColumn("dbo", "departamento", "id");
+        String display = foreignKeyService.resolveDisplayColumn("dbo", "departamento", "id");
 
         assertThat(display).isEqualTo("codigo");
     }
 
     @Test
     void resolveDisplayColumn_fallsBackToPrimaryKey_whenNoTextColumnsExist() {
-        DatabaseService selfMock = mock(DatabaseService.class);
-        ReflectionTestUtils.setField(databaseService, "self", selfMock);
-        when(selfMock.getColumns("dbo", "medicion")).thenReturn(List.of(
+        when(schemaMetadataService.getColumns("dbo", "medicion")).thenReturn(List.of(
                 new ColumnInfo("id", "INT", 4, false),
                 new ColumnInfo("valor", "DECIMAL", 10, false)
         ));
 
-        String display = databaseService.resolveDisplayColumn("dbo", "medicion", "id");
+        String display = foreignKeyService.resolveDisplayColumn("dbo", "medicion", "id");
 
         assertThat(display).isEqualTo("id");
     }
 
     @Test
     void resolveForeignKeys_classifiesResolvedNullAndOrphanRows() throws Exception {
-        DatabaseService selfMock = mock(DatabaseService.class);
-        ReflectionTestUtils.setField(databaseService, "self", selfMock);
+        ForeignKeyService selfMock = mock(ForeignKeyService.class);
+        ReflectionTestUtils.setField(foreignKeyService, "self", selfMock);
 
-        when(selfMock.getTables()).thenReturn(List.of(
-                new TableInfo("dbo", "empleado"),
-                new TableInfo("dbo", "departamento")
-        ));
+        when(schemaMetadataService.isTableValid("dbo", "empleado")).thenReturn(true);
+        when(schemaMetadataService.isTableValid("dbo", "departamento")).thenReturn(true);
         when(selfMock.getForeignKeys("dbo", "empleado")).thenReturn(List.of(
                 new ForeignKeyInfo("departamento_id", "dbo", "departamento", "id")
         ));
@@ -162,7 +165,7 @@ class DatabaseServiceForeignKeyTest {
                 rowOf("id", 4, "departamento_id", 99)    // huérfano: no existe en departamento
         );
 
-        ForeignKeyResolution result = databaseService.resolveForeignKeys("dbo", "empleado", rows);
+        ForeignKeyResolution result = foreignKeyService.resolveForeignKeys("dbo", "empleado", rows);
 
         assertThat(result.columns()).hasSize(1);
         assertThat(result.columns().get(0).displayColumn()).isEqualTo("nombre");
@@ -174,31 +177,10 @@ class DatabaseServiceForeignKeyTest {
         );
     }
 
-    private void mockTablesWhitelist(TableInfo... tables) throws Exception {
-        // getForeignKeys() valida la tabla de origen con isTableValid(), que en producción
-        // pasa por self.getTables() (cacheado); aquí self == databaseService, así que se
-        // ejecuta la consulta real de metadatos una sola vez, sobre los mismos mocks de
-        // campo (dataSource/connection/metaData) que usa el resto del test para getImportedKeys.
-        ResultSet rs = mock(ResultSet.class);
-
+    private void mockConnectionMetadata() throws Exception {
         when(jdbcTemplate.getDataSource()).thenReturn(dataSource);
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.getMetaData()).thenReturn(metaData);
-        when(metaData.getTables(null, null, "%", new String[]{"TABLE"})).thenReturn(rs);
-
-        Boolean[] rest = new Boolean[tables.length];
-        for (int i = 0; i < tables.length - 1; i++) rest[i] = true;
-        rest[tables.length - 1] = false;
-        when(rs.next()).thenReturn(true, rest);
-
-        String[] schemas = new String[tables.length];
-        String[] names = new String[tables.length];
-        for (int i = 0; i < tables.length; i++) {
-            schemas[i] = tables[i].schema();
-            names[i] = tables[i].name();
-        }
-        when(rs.getString("TABLE_SCHEM")).thenReturn(schemas[0], schemas);
-        when(rs.getString("TABLE_NAME")).thenReturn(names[0], names);
     }
 
     private ResultSet fakeRow(Object key, Object value) throws Exception {

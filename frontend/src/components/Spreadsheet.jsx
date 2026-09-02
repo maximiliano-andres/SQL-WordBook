@@ -19,7 +19,8 @@ export default function Spreadsheet({
   onToggleFk = () => {},
   onDeleteCustomFk = () => {},
   appliedFilter = null,
-  onApplyFilter = () => {}
+  onApplyFilter = () => {},
+  uxMode = 'simple'
 }) {
   const [activeTab, setActiveTab] = useState('data'); // 'data' o 'schema'
   const [editingColName, setEditingColName] = useState(null);
@@ -134,16 +135,16 @@ export default function Spreadsheet({
     return (
       <div className="welcome-workbook-view">
         <div className="welcome-sheet">
-          <h2>Libro de Trabajo <span>SQL Server</span></h2>
-          <p>Selecciona una de las tablas disponibles en las pestañas inferiores ("Hojas de cálculo") para cargar su información de forma segura y optimizada.</p>
+          <h2>Libro de Trabajo <span>{uxMode === 'simple' ? 'Excel / Datos' : 'SQL Server'}</span></h2>
+          <p>{uxMode === 'simple' ? 'Selecciona una de las hojas de datos en la barra inferior para consultar sus registros y aplicar filtros.' : 'Selecciona una de las tablas disponibles en las pestañas inferiores ("Hojas de cálculo") para cargar su información de forma segura y optimizada.'}</p>
           <div className="sheet-guide-grid">
             <div className="guide-box">
-              <h4>Conexión Segura</h4>
-              <p>Las consultas dinámicas de tablas son previamente verificadas contra el esquema para evitar Inyecciones SQL.</p>
+              <h4>{uxMode === 'simple' ? 'Exploración Rápida' : 'Conexión Segura'}</h4>
+              <p>{uxMode === 'simple' ? 'Visualiza miles de registros de forma inmediata con paginación fluida y filtros instantáneos.' : 'Las consultas dinámicas de tablas son previamente verificadas contra el esquema para evitar Inyecciones SQL.'}</p>
             </div>
             <div className="guide-box">
-              <h4>Rendimiento Máximo</h4>
-              <p>Los datos son paginados nativamente en SQL Server y servidos a través de un pool de conexiones optimizado con HikariCP.</p>
+              <h4>{uxMode === 'simple' ? 'Exportación a Excel' : 'Rendimiento Máximo'}</h4>
+              <p>{uxMode === 'simple' ? 'Descarga la tabla completa o reportes personalizados directamente en formato Microsoft Excel (.xlsx).' : 'Los datos son paginados nativamente en SQL Server y servidos a través de un pool de conexiones optimizado con HikariCP.'}</p>
             </div>
           </div>
         </div>
@@ -167,7 +168,7 @@ export default function Spreadsheet({
       {/* Vista de cabecera de la hoja */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--excel-border)', backgroundColor: 'var(--excel-bg-sidebar)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span className="schema-badge">{activeTable.schema}</span>
+          {uxMode === 'advanced' && <span className="schema-badge">{activeTable.schema}</span>}
           <h2 style={{ fontSize: '18px', fontWeight: 600 }}>{activeTable.name}</h2>
         </div>
         
@@ -325,7 +326,7 @@ export default function Spreadsheet({
               <div style={{ display: 'flex', gap: '8px', alignSelf: 'flex-end', marginTop: '16px' }}>
                 <button 
                   className="excel-btn primary"
-                  style={{ height: '30px', padding: '0 16px', fontSize: '12px', backgroundColor: 'var(--excel-green)', borderColor: 'var(--excel-green)' }}
+                  style={{ height: '30px', padding: '0 16px', fontSize: '12px' }}
                   onClick={handleApplyFilter}
                   disabled={
                     !tempFilterColumn || 

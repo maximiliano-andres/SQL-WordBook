@@ -23,16 +23,20 @@ spring:
         prepStmtCacheSize: 250
         prepStmtCacheSqlLimit: 2048
         useServerPrepStmts: true
+  # Tamaño/TTL por caché configurados programáticamente en CacheConfig.java
+  # (un solo spec compartido entre las 5 cachés provocaba evicción constante
+  # en esquemas con más de 200 tablas; ver auditoría F8).
   cache:
     type: caffeine
-    cache-names:
-      - tables
-      - columns
-      - foreignKeys
-      - fkDisplayColumn
-      - tableCount
-    caffeine:
-      spec: expireAfterWrite=60s,maximumSize=200
+  flyway:
+    # baseline-version: 0 (no el 1 por defecto) para que, en una base de datos donde esta
+    # app ya corrió con el DDL condicional embebido antiguo (dbo.push_custom_fks/reports ya
+    # existen pero sin historial de Flyway), el baseline se marque ANTES de V1 y V1 igual
+    # se ejecute. V1 es idempotente (IF NOT EXISTS) a propósito para este caso: no vuelve a
+    # crear las tablas ya existentes, pero sí aplica lo que falte (p. ej. el índice nuevo).
+    # En una base de datos nueva, "schema no-empty" nunca se cumple y esto no tiene efecto.
+    baseline-on-migrate: true
+    baseline-version: 0
 
 server:
   compression:

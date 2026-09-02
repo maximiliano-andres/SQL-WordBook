@@ -28,7 +28,9 @@ export default function Ribbon({
   onOpenDbaConsole,
   onOpenManual,
   currentView = 'explorer',
-  setCurrentView = () => {}
+  setCurrentView = () => {},
+  uxMode = 'simple',
+  onSetUxMode = () => {}
 }) {
   const [activeTab, setActiveTab] = useState('home'); // 'home', 'data', 'about'
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
@@ -55,19 +57,35 @@ export default function Ribbon({
             title="Explorador de tablas individuales estilo Excel"
           >
             <Table size={13} />
-            <span>Explorador de Tablas</span>
+            <span>{uxMode === 'simple' ? 'Hojas de Datos' : 'Explorador de Tablas'}</span>
           </button>
           <button
             className={`view-mode-btn ${currentView === 'custom-reports' ? 'active' : ''}`}
             onClick={() => setCurrentView('custom-reports')}
-            title="Constructor y visor de reportes personalizados con cruces multi-tabla (Joins)"
+            title="Constructor y visor de reportes personalizados con cruces multi-tabla"
           >
             <Layers size={13} style={{ color: currentView === 'custom-reports' ? '#fff' : 'var(--excel-green-light)' }} />
-            <span>Reportes Personalizados (Cruces)</span>
+            <span>{uxMode === 'simple' ? 'Cruzar y Armar Reportes' : 'Reportes Personalizados (Joins)'}</span>
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Selector de Experiencia Dual (Modo Fácil vs Modo DBA) */}
+        <div className="ux-mode-toggle" title="Alternar entre interfaz amigable tipo Excel/Buk o interfaz técnica de Base de Datos">
+          <button
+            className={`ux-mode-btn ${uxMode === 'simple' ? 'active simple' : ''}`}
+            onClick={() => onSetUxMode('simple')}
+          >
+            <span>🟢 Modo Fácil (Excel)</span>
+          </button>
+          <button
+            className={`ux-mode-btn ${uxMode === 'advanced' ? 'active advanced' : ''}`}
+            onClick={() => onSetUxMode('advanced')}
+          >
+            <span>🛠️ Modo DBA</span>
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             className="excel-btn"
             onClick={onOpenManual}
@@ -75,12 +93,14 @@ export default function Ribbon({
             title="Abrir Manual de Uso Interactivo"
           >
             <HelpCircle size={13} className="excel-icon" style={{ color: 'var(--excel-green-light)' }} />
-            <span>Guía de Uso</span>
+            <span>Guía</span>
           </button>
-          <div className="db-status">
-            <span className={`status-dot ${dbInfo?.databaseProduct ? 'online' : ''}`}></span>
-            <span>{dbInfo?.databaseProduct || 'Desconectado'} - {dbInfo?.databaseVersion || 'N/A'}</span>
-          </div>
+          {uxMode === 'advanced' && (
+            <div className="db-status">
+              <span className={`status-dot ${dbInfo?.databaseProduct ? 'online' : ''}`}></span>
+              <span>{dbInfo?.databaseProduct || 'Desconectado'}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -225,7 +245,6 @@ export default function Ribbon({
                   onExportExcel();
                 }}
                 disabled={!activeTable || isDataLoading || selectedColumns.length === 0}
-                style={{ backgroundColor: 'var(--excel-green)', borderColor: 'var(--excel-green)' }}
                 title="Descargar el reporte completo de la tabla en un archivo real Excel (.xlsx) resolviendo todas las relaciones de FKs en caliente"
               >
                 <Download size={14} />
@@ -355,14 +374,14 @@ export default function Ribbon({
               {dbInfo?.totalSizeMb !== null && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Tamaño total en disco consumido por los archivos de la base de datos">
                   <Database size={14} className="excel-icon" />
-                  <span><strong>Tamaño Total:</strong> <strong style={{ color: '#ffb74d' }}>{dbInfo.totalSizeMb} MB</strong></span>
+                  <span><strong>Tamaño Total:</strong> <strong style={{ color: 'var(--excel-amber)' }}>{dbInfo.totalSizeMb} MB</strong></span>
                 </div>
               )}
             </div>
 
             <button
               className="excel-btn primary"
-              style={{ padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', height: '30px', backgroundColor: 'var(--excel-green)', borderColor: 'var(--excel-green)' }}
+              style={{ padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', height: '30px' }}
               onClick={onOpenDbaConsole}
               title="Abrir el panel de diagnóstico detallado para desarrolladores, consultores y administradores de bases de datos"
             >

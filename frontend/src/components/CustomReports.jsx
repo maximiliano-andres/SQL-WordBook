@@ -1,31 +1,28 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Play, Download, Save, FolderOpen, Plus, Trash2, Edit3,
-  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Copy, Check,
-  Layers, Link2, Code2, Sparkles, RefreshCw, Filter, Eye,
-  Settings2, X, ArrowUpDown, FileSpreadsheet, Info, AlertCircle
+  Play, Save, FolderOpen, Plus,
+  Layers, Settings2, Eye, X, AlertCircle, Sparkles
 } from 'lucide-react';
+import JoinBuilderPanel from './custom-reports/JoinBuilderPanel';
+import ColumnSelectorPanel from './custom-reports/ColumnSelectorPanel';
+import FilterSortPanel from './custom-reports/FilterSortPanel';
+import ReportResultsGrid from './custom-reports/ReportResultsGrid';
+import SaveTemplateModal from './custom-reports/SaveTemplateModal';
+import TemplatesModal from './custom-reports/TemplatesModal';
+import { useToast } from '../context/ToastContext';
 
-const ALLOWED_OPERATORS = [
-  { value: 'LIKE', label: 'contiene (LIKE)', unary: false },
-  { value: 'NOT LIKE', label: 'no contiene (NOT LIKE)', unary: false },
-  { value: '=', label: 'igual a (=)', unary: false },
-  { value: '!=', label: 'distinto de (!=)', unary: false },
-  { value: '>', label: 'mayor que (>)', unary: false },
-  { value: '<', label: 'menor que (<)', unary: false },
-  { value: '>=', label: 'mayor o igual que (>=)', unary: false },
-  { value: '<=', label: 'menor o igual que (<=)', unary: false },
-  { value: 'BETWEEN', label: 'está entre (BETWEEN)', unary: false, between: true },
-  { value: 'IN', label: 'está en lista (IN)', unary: false },
-  { value: 'IS NULL', label: 'está vacío (IS NULL)', unary: true },
-  { value: 'IS NOT NULL', label: 'no está vacío (IS NOT NULL)', unary: true }
-];
-
+// Orquestador del módulo "Reportes Personalizados": mantiene todo el estado y los
+// handlers, y delega la presentación a los paneles/modales de ./custom-reports.
+// Cada panel está envuelto en React.memo, por lo que los handlers que reciben se
+// pasan memoizados con useCallback para que editar un filtro, por ejemplo, no
+// fuerce el re-render del panel de columnas ni de la grilla de resultados.
 export default function CustomReports({
   tables = [],
   columnsCache = {},
-  setColumnsCache = () => {}
+  setColumnsCache = () => {},
+  uxMode = 'simple'
 }) {
+  const { success, error: toastError, warning: toastWarning, info: toastInfo, confirm } = useToast();
   // --- Estados de Plantilla / Configuración ---
   const [reportId, setReportId] = useState(null);
   const [reportName, setReportName] = useState('Nuevo Reporte Personalizado');
@@ -189,7 +186,7 @@ export default function CustomReports({
   }, []);
 
   // Seleccionar tabla base inicial
-  const handleSelectBaseTable = (tableKey) => {
+  const handleSelectBaseTable = useCallback((tableKey) => {
     if (!tableKey) {
       setBaseTable(null);
       setJoins([]);
@@ -217,10 +214,10 @@ export default function CustomReports({
         })));
       }
     });
-  };
+  }, [loadJoinSuggestionsForTables, fetchColumnsForTable]);
 
   // Agregar un cruce (Join) sugerido automáticamente por FK
-  const handleApplySuggestedJoin = async (sug) => {
+  const handleApplySuggestedJoin = useCallback(async (sug) => {
     const originTable = participatingTables.find(t => t.alias === sug.originTableAlias) || baseTable;
     const isTargetOther = (sug.sourceSchema === originTable.schema && sug.sourceTable === originTable.name);
     const targetSchema = isTargetOther ? sug.targetSchema : sug.sourceSchema;
@@ -260,10 +257,10 @@ export default function CustomReports({
         }))
       ]);
     }
-  };
+  }, [participatingTables, baseTable, getNextAlias, loadJoinSuggestionsForTables, fetchColumnsForTable]);
 
   // Agregar un cruce manual
-  const handleAddManualJoin = () => {
+  const handleAddManualJoin = useCallback(() => {
     if (!tables || tables.length === 0 || !baseTable) return;
     const defaultLeftTable = participatingTables[participatingTables.length - 1] || baseTable;
     const defaultTargetTable = tables.find(t => !participatingTables.some(pt => pt.schema === t.schema && pt.name === t.name)) || tables[0];
@@ -278,10 +275,10 @@ export default function CustomReports({
     };
     setJoins(prev => [...prev, newJoin]);
     fetchColumnsForTable(defaultTargetTable.schema, defaultTargetTable.name);
-  };
+  }, [tables, baseTable, participatingTables, getNextAlias, fetchColumnsForTable]);
 
   // Actualizar un Join
-  const handleUpdateJoin = (id, field, value) => {
+  const handleUpdateJoin = useCallback((id, field, value) => {
     setJoins(prev => prev.map(j => {
       if (j.id !== id) return j;
       if (field === 'tableKey') {
@@ -307,10 +304,10 @@ export default function CustomReports({
       }
       return j;
     }));
-  };
+  }, [fetchColumnsForTable]);
 
   // Eliminar un Join
-  const handleDeleteJoin = (id) => {
+  const handleDeleteJoin = useCallback((id) => {
     const targetJoin = joins.find(j => j.id === id);
     if (targetJoin) {
       // Eliminar también columnas, filtros y ordenamientos asociados a ese alias
@@ -326,51 +323,54 @@ export default function CustomReports({
       }
       return updated;
     });
-  };
+  }, [joins, baseTable, loadJoinSuggestionsForTables]);
 
   // Toggle selección de columna
-  const handleToggleColumn = (tableAlias, colName) => {
-    const exists = selectedColumns.some(c => c.tableAlias === tableAlias && c.column === colName);
-    if (exists) {
-      setSelectedColumns(prev => prev.filter(c => !(c.tableAlias === tableAlias && c.column === colName)));
-    } else {
+  const handleToggleColumn = useCallback((tableAlias, colName) => {
+    setSelectedColumns(prev => {
+      const exists = prev.some(c => c.tableAlias === tableAlias && c.column === colName);
+      if (exists) {
+        return prev.filter(c => !(c.tableAlias === tableAlias && c.column === colName));
+      }
       const tableObj = participatingTables.find(t => t.alias === tableAlias);
       const label = tableObj && !tableObj.isBase ? `${tableObj.name} - ${colName}` : colName;
-      setSelectedColumns(prev => [...prev, { tableAlias, column: colName, label }]);
-    }
-  };
+      return [...prev, { tableAlias, column: colName, label }];
+    });
+  }, [participatingTables]);
 
   // Marcar todas las columnas de una tabla
-  const handleSelectAllColumnsOfTable = (tableAlias) => {
+  const handleSelectAllColumnsOfTable = useCallback((tableAlias) => {
     const tableObj = participatingTables.find(t => t.alias === tableAlias);
     if (!tableObj) return;
     const cols = columnsCache[`${tableObj.schema}.${tableObj.name}`] || [];
-    const otherCols = selectedColumns.filter(c => c.tableAlias !== tableAlias);
-    const newCols = cols.map(c => ({
-      tableAlias,
-      column: c.name,
-      label: !tableObj.isBase ? `${tableObj.name} - ${c.name}` : c.name
-    }));
-    setSelectedColumns([...otherCols, ...newCols]);
-  };
+    setSelectedColumns(prev => {
+      const otherCols = prev.filter(c => c.tableAlias !== tableAlias);
+      const newCols = cols.map(c => ({
+        tableAlias,
+        column: c.name,
+        label: !tableObj.isBase ? `${tableObj.name} - ${c.name}` : c.name
+      }));
+      return [...otherCols, ...newCols];
+    });
+  }, [participatingTables, columnsCache]);
 
   // Desmarcar todas las columnas de una tabla
-  const handleDeselectAllColumnsOfTable = (tableAlias) => {
+  const handleDeselectAllColumnsOfTable = useCallback((tableAlias) => {
     setSelectedColumns(prev => prev.filter(c => c.tableAlias !== tableAlias));
-  };
+  }, []);
 
   // Cambiar alias/etiqueta de una columna
-  const handleUpdateColumnLabel = (tableAlias, colName, newLabel) => {
+  const handleUpdateColumnLabel = useCallback((tableAlias, colName, newLabel) => {
     setSelectedColumns(prev => prev.map(c => {
       if (c.tableAlias === tableAlias && c.column === colName) {
         return { ...c, label: newLabel };
       }
       return c;
     }));
-  };
+  }, []);
 
   // Agregar Filtro
-  const handleAddFilter = () => {
+  const handleAddFilter = useCallback(() => {
     if (participatingTables.length === 0) return;
     const firstTable = participatingTables[0];
     const cols = columnsCache[`${firstTable.schema}.${firstTable.name}`] || [];
@@ -388,10 +388,10 @@ export default function CustomReports({
         logic: 'AND'
       }
     ]);
-  };
+  }, [participatingTables, columnsCache]);
 
   // Actualizar Filtro
-  const handleUpdateFilter = (id, field, value) => {
+  const handleUpdateFilter = useCallback((id, field, value) => {
     setFilters(prev => prev.map(f => {
       if (f.id !== id) return f;
       if (field === 'tableAlias') {
@@ -401,15 +401,15 @@ export default function CustomReports({
       }
       return { ...f, [field]: value };
     }));
-  };
+  }, [participatingTables, columnsCache]);
 
   // Eliminar Filtro
-  const handleDeleteFilter = (id) => {
+  const handleDeleteFilter = useCallback((id) => {
     setFilters(prev => prev.filter(f => f.id !== id));
-  };
+  }, []);
 
   // Agregar Ordenamiento
-  const handleAddSort = () => {
+  const handleAddSort = useCallback(() => {
     if (participatingTables.length === 0) return;
     const firstTable = participatingTables[0];
     const cols = columnsCache[`${firstTable.schema}.${firstTable.name}`] || [];
@@ -423,10 +423,10 @@ export default function CustomReports({
         direction: 'ASC'
       }
     ]);
-  };
+  }, [participatingTables, columnsCache]);
 
   // Actualizar Ordenamiento
-  const handleUpdateSort = (id, field, value) => {
+  const handleUpdateSort = useCallback((id, field, value) => {
     setSorts(prev => prev.map(s => {
       if (s.id !== id) return s;
       if (field === 'tableAlias') {
@@ -436,12 +436,12 @@ export default function CustomReports({
       }
       return { ...s, [field]: value };
     }));
-  };
+  }, [participatingTables, columnsCache]);
 
   // Eliminar Ordenamiento
-  const handleDeleteSort = (id) => {
+  const handleDeleteSort = useCallback((id) => {
     setSorts(prev => prev.filter(s => s.id !== id));
-  };
+  }, []);
 
   // Construir el payload de consulta
   const buildQueryPayload = useCallback((customPage = page, customLimit = limit, customDistinct = isDistinct) => {
@@ -469,7 +469,7 @@ export default function CustomReports({
   }, [baseTable, joins, selectedColumns, filters, sorts, page, limit, isDistinct]);
 
   // Ejecutar Consulta
-  const handleExecuteQuery = async (targetPage = 1, targetLimit = limit, targetDistinct = isDistinct) => {
+  const handleExecuteQuery = useCallback(async (targetPage = 1, targetLimit = limit, targetDistinct = isDistinct) => {
     if (!baseTable) {
       setQueryError('Por favor selecciona una tabla base para el reporte.');
       return;
@@ -510,17 +510,18 @@ export default function CustomReports({
     } finally {
       setIsExecuting(false);
     }
-  };
+  }, [baseTable, selectedColumns, buildQueryPayload, limit, isDistinct]);
 
   // Alternar eliminación de duplicados (DISTINCT)
-  const handleToggleDistinct = () => {
+  const handleToggleDistinct = useCallback(() => {
     const nextDistinct = !isDistinct;
     setIsDistinct(nextDistinct);
     handleExecuteQuery(1, limit, nextDistinct);
-  };
+  }, [isDistinct, handleExecuteQuery, limit]);
 
   // Exportar a Excel (.xlsx)
-  const handleExportExcel = async () => {
+  // Exportar a Excel (.xlsx)
+  const handleExportExcel = useCallback(async () => {
     if (!baseTable || selectedColumns.length === 0) return;
     setIsExportingExcel(true);
     const query = buildQueryPayload(1, 1000000, isDistinct); // Sin límite para exportación
@@ -546,15 +547,16 @@ export default function CustomReports({
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+      success('Archivo Excel descargado correctamente');
     } catch (err) {
-      alert(`Error al exportar: ${err.message}`);
+      toastError(`Error al exportar: ${err.message}`);
     } finally {
       setIsExportingExcel(false);
     }
-  };
+  }, [baseTable, selectedColumns, buildQueryPayload, isDistinct, reportName, success, toastError]);
 
   // Exportar vista actual a CSV
-  const handleExportCsv = () => {
+  const handleExportCsv = useCallback(() => {
     if (!reportData || reportData.length === 0) return;
     const cols = reportResultColumns.map(c => c.label);
     let csv = cols.map(c => `"${c.replace(/"/g, '""')}"`).join(',') + '\n';
@@ -575,12 +577,13 @@ export default function CustomReports({
     a.download = `${reportName.toLowerCase().replace(/[^a-z0-9_]/g, '_')}_pagina_${page}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  };
+    success('Vista exportada a CSV');
+  }, [reportData, reportResultColumns, reportName, page, success]);
 
   // Guardar plantilla
-  const handleSaveTemplate = async () => {
+  const handleSaveTemplate = useCallback(async () => {
     if (!tempReportName.trim()) {
-      alert('El nombre del reporte es obligatorio');
+      toastWarning('El nombre del reporte es obligatorio');
       return;
     }
     const config = {
@@ -613,14 +616,14 @@ export default function CustomReports({
       setReportDescription(saved.description);
       setShowSaveModal(false);
       loadTemplates();
-      alert('¡Plantilla de reporte guardada con éxito en la base de datos!');
+      success('¡Plantilla de reporte guardada con éxito en la base de datos!');
     } catch (err) {
-      alert(err.message);
+      toastError(err.message);
     }
-  };
+  }, [tempReportName, tempReportDesc, baseTable, joins, selectedColumns, filters, sorts, isDistinct, reportId, loadTemplates, success, toastWarning, toastError]);
 
   // Cargar una plantilla
-  const handleLoadTemplate = (tpl) => {
+  const handleLoadTemplate = useCallback((tpl) => {
     try {
       const config = JSON.parse(tpl.configJson);
       setReportId(tpl.id);
@@ -637,32 +640,40 @@ export default function CustomReports({
         const allParticipating = [config.baseTable, ...(config.joins || []).map(j => j.table)];
         loadJoinSuggestionsForTables(allParticipating);
       }
+      success(`Plantilla "${tpl.name}" cargada correctamente`);
     } catch (e) {
-      alert('Error al leer el archivo de configuración de la plantilla.');
+      toastError('Error al leer el archivo de configuración de la plantilla.');
     }
-  };
+  }, [loadJoinSuggestionsForTables, success, toastError]);
 
   // Eliminar plantilla
-  const handleDeleteTemplate = async (id, e) => {
+  const handleDeleteTemplate = useCallback((id, e) => {
     e.stopPropagation();
-    if (!window.confirm('¿Seguro que deseas eliminar esta plantilla de reporte?')) return;
-    try {
-      const res = await fetch(`/api/db/custom-reports/templates/${encodeURIComponent(id)}`, {
-        method: 'DELETE'
-      });
-      if (res.ok) {
-        setTemplates(prev => prev.filter(t => t.id !== id));
-        if (reportId === id) {
-          setReportId(null);
+    confirm({
+      title: '¿Eliminar plantilla?',
+      message: '¿Estás seguro de que deseas eliminar permanentemente esta plantilla de reporte?',
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/db/custom-reports/templates/${encodeURIComponent(id)}`, {
+            method: 'DELETE'
+          });
+          if (res.ok) {
+            setTemplates(prev => prev.filter(t => t.id !== id));
+            setReportId(prevId => (prevId === id ? null : prevId));
+            success('Plantilla eliminada correctamente');
+          }
+        } catch (err) {
+          toastError('Error al eliminar la plantilla.');
         }
       }
-    } catch (err) {
-      alert('Error al eliminar la plantilla.');
-    }
-  };
+    });
+  }, [confirm, success, toastError]);
 
   // Reset / Nuevo Reporte
-  const handleNewReport = () => {
+  const handleNewReport = useCallback(() => {
     setReportId(null);
     setReportName('Nuevo Reporte Personalizado');
     setReportDescription('');
@@ -677,7 +688,22 @@ export default function CustomReports({
     setActiveStep('builder');
     setSuggestedJoins([]);
     setIsDistinct(false);
-  };
+  }, []);
+
+  const handleOpenSaveModal = useCallback(() => {
+    setTempReportName(reportName);
+    setTempReportDesc(reportDescription);
+    setShowSaveModal(true);
+  }, [reportName, reportDescription]);
+
+  const handleOpenTemplatesModal = useCallback(() => {
+    loadTemplates();
+    setShowTemplatesModal(true);
+  }, [loadTemplates]);
+
+  const handleExecuteFromToolbar = useCallback(() => {
+    handleExecuteQuery(1, limit);
+  }, [handleExecuteQuery, limit]);
 
   return (
     <div className="custom-reports-workspace">
@@ -704,11 +730,7 @@ export default function CustomReports({
         <div className="cr-header-actions">
           <button
             className="excel-btn"
-            onClick={() => {
-              setTempReportName(reportName);
-              setTempReportDesc(reportDescription);
-              setShowSaveModal(true);
-            }}
+            onClick={handleOpenSaveModal}
             title="Guardar esta consulta como plantilla reutilizable"
           >
             <Save size={14} style={{ color: 'var(--excel-green-light)' }} />
@@ -717,10 +739,7 @@ export default function CustomReports({
 
           <button
             className="excel-btn"
-            onClick={() => {
-              loadTemplates();
-              setShowTemplatesModal(true);
-            }}
+            onClick={handleOpenTemplatesModal}
             title="Cargar una plantilla guardada previamente"
           >
             <FolderOpen size={14} />
@@ -757,9 +776,8 @@ export default function CustomReports({
 
           <button
             className="excel-btn primary"
-            onClick={() => handleExecuteQuery(1, limit)}
+            onClick={handleExecuteFromToolbar}
             disabled={isExecuting || !baseTable || selectedColumns.length === 0}
-            style={{ backgroundColor: 'var(--excel-green)', borderColor: 'var(--excel-green)', fontWeight: 600 }}
             title="Ejecutar consulta multi-tabla con los filtros y cruces configurados"
           >
             <Play size={14} className={isExecuting ? 'animate-spin' : ''} />
@@ -778,847 +796,107 @@ export default function CustomReports({
 
       {/* Contenido Principal */}
       <div className="cr-body-content">
-        {activeStep === 'builder' ? (
-          <div className="cr-builder-layout">
-            {/* PANEL IZQUIERDO: Configuración de Tablas y Cruces */}
-            <div className="cr-panel-card">
-              <div className="cr-card-header">
-                <div className="cr-card-title">
-                  <span className="cr-step-number">1</span>
-                  <h3>Tabla Principal y Cruces (Joins)</h3>
-                </div>
-                <button
-                  className="excel-btn"
-                  style={{ fontSize: '11px', padding: '3px 8px' }}
-                  onClick={handleAddManualJoin}
-                  disabled={!baseTable}
-                  title="Agregar un cruce manual con otra tabla"
-                >
-                  <Plus size={13} />
-                  <span>Cruce Manual</span>
-                </button>
-              </div>
-
-              {/* Selector de Tabla Base */}
-              <div className="cr-section-block">
-                <label className="cr-label">
-                  <strong>Tabla Principal (Origen de datos):</strong>
-                </label>
-                <select
-                  className="excel-select cr-wide-select"
-                  value={baseTable ? `${baseTable.schema}.${baseTable.name}` : ''}
-                  onChange={(e) => handleSelectBaseTable(e.target.value)}
-                >
-                  <option value="">-- Seleccionar tabla principal --</option>
-                  {tables.map(t => (
-                    <option key={`${t.schema}.${t.name}`} value={`${t.schema}.${t.name}`}>
-                      {t.schema}.{t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Mapa / Cadena Visual de Tablas Cruzadas */}
-              {baseTable && (
-                <div className="cr-chain-container">
-                  <span className="cr-chain-title">Esquema de Cruces ({participatingTables.length} tablas):</span>
-                  <div className="cr-tables-chain">
-                    <span className="cr-chain-badge base" title="Tabla principal de origen">
-                      🏠 {baseTable.name} <small>(Base)</small>
-                    </span>
-                    {joins.map((j, i) => (
-                      <React.Fragment key={j.id}>
-                        <span className="cr-chain-arrow">➔</span>
-                        <span className="cr-chain-badge join" title={`${j.type} JOIN con ${j.onLeft.tableAlias}.${j.onLeft.column} = ${j.table.alias}.${j.onRight.column}`}>
-                          🔗 {j.type} {j.table.name}
-                        </span>
-                      </React.Fragment>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Sugerencias Inteligentes de Cruces basadas en FKs */}
-              {baseTable && (
-                <div className="cr-suggestions-container">
-                  <div className="cr-suggestions-header">
-                    <Sparkles size={14} style={{ color: '#ffd54f' }} />
-                    <span>Relaciones FK detectadas ({suggestedJoins.length})</span>
-                  </div>
-                  {isLoadingSuggestions ? (
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Analizando claves foráneas...</div>
-                  ) : suggestedJoins.length > 0 ? (
-                    <div className="cr-suggestions-list">
-                      {suggestedJoins.map((sug, idx) => {
-                        const isAlreadyAdded = joins.some(j =>
-                          (j.table.schema === sug.targetSchema && j.table.name === sug.targetTable) ||
-                          (j.table.schema === sug.sourceSchema && j.table.name === sug.sourceTable)
-                        );
-                        return (
-                          <div key={idx} className={`cr-suggestion-item ${isAlreadyAdded ? 'added' : ''}`}>
-                            <div className="cr-sug-info">
-                              <span className="cr-sug-desc">
-                                <strong>[{sug.originTableName || baseTable.name}]</strong> ➔ {sug.description}
-                              </span>
-                            </div>
-                            <button
-                              className="excel-btn"
-                              style={{ fontSize: '10.5px', padding: '2px 8px', height: '22px' }}
-                              onClick={() => handleApplySuggestedJoin(sug)}
-                              disabled={isAlreadyAdded}
-                            >
-                              {isAlreadyAdded ? <Check size={12} /> : <Plus size={12} />}
-                              <span>{isAlreadyAdded ? 'Agregado' : 'Unir'}</span>
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                      No se detectaron FKs directas. Puedes usar el botón <strong>"+ Cruce Manual"</strong> arriba.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Lista de Cruces Configurados */}
-              {joins.length > 0 && (
-                <div className="cr-joins-list">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <label className="cr-label" style={{ margin: 0 }}><strong>Cruces configurados ({joins.length}):</strong></label>
-                  </div>
-
-                  {joins.map((j, idx) => {
-                    const availableLeftTables = [baseTable, ...joins.slice(0, idx).map(item => item.table)].filter(Boolean);
-                    const leftTableObj = availableLeftTables.find(t => t.alias === j.onLeft.tableAlias) || availableLeftTables[0];
-                    const leftCols = leftTableObj ? (columnsCache[`${leftTableObj.schema}.${leftTableObj.name}`] || []) : [];
-                    const rightCols = columnsCache[`${j.table.schema}.${j.table.name}`] || [];
-
-                    return (
-                      <div key={j.id} className="cr-join-card">
-                        <div className="cr-join-header">
-                          <span className="cr-join-idx">Cruce #{idx + 1}</span>
-                          <select
-                            className="excel-select cr-join-type-select"
-                            value={j.type}
-                            onChange={(e) => handleUpdateJoin(j.id, 'type', e.target.value)}
-                          >
-                            <option value="LEFT">LEFT JOIN (Mantener filas de la izquierda)</option>
-                            <option value="INNER">INNER JOIN (Solo filas que coincidan en ambas)</option>
-                            <option value="RIGHT">RIGHT JOIN (Mantener filas de la derecha)</option>
-                            <option value="FULL">FULL JOIN (Todas las filas)</option>
-                          </select>
-                          <button
-                            className="cr-icon-btn danger"
-                            onClick={() => handleDeleteJoin(j.id)}
-                            title="Eliminar este cruce"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-
-                        <div className="cr-join-body">
-                          <div className="cr-field-row">
-                            <span className="cr-field-label">Unir tabla:</span>
-                            <select
-                              className="excel-select cr-join-target-select"
-                              value={`${j.table.schema}.${j.table.name}`}
-                              onChange={(e) => handleUpdateJoin(j.id, 'tableKey', e.target.value)}
-                            >
-                              {tables.map(t => (
-                                <option key={`${t.schema}.${t.name}`} value={`${t.schema}.${t.name}`}>
-                                  {t.schema}.{t.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="cr-join-condition-block">
-                            <span className="cr-on-title">Condición de enlace (ON):</span>
-                            <div className="cr-join-condition-row">
-                              {/* Selector de Tabla Izquierda (Permite encadenar con base o joins anteriores) */}
-                              <select
-                                className="excel-select cr-on-table-select"
-                                value={j.onLeft.tableAlias || (leftTableObj?.alias || 't0')}
-                                onChange={(e) => handleUpdateJoin(j.id, 'onLeftTableAlias', e.target.value)}
-                                title="Selecciona con qué tabla se relaciona este cruce"
-                              >
-                                {availableLeftTables.map(t => (
-                                  <option key={t.alias} value={t.alias}>
-                                    {t.name} ({t.alias})
-                                  </option>
-                                ))}
-                              </select>
-
-                              {/* Selector de Columna Izquierda */}
-                              <select
-                                className="excel-select cr-on-col-select"
-                                value={j.onLeft.column}
-                                onChange={(e) => handleUpdateJoin(j.id, 'onLeftColumn', e.target.value)}
-                              >
-                                <option value="">-- Columna ({leftTableObj?.name || 'Izquierda'}) --</option>
-                                {leftCols.map(c => (
-                                  <option key={c.name} value={c.name}>{c.name}</option>
-                                ))}
-                              </select>
-
-                              <span className="cr-equal-sign">=</span>
-
-                              {/* Columna Derecha de la tabla que se está uniendo */}
-                              <select
-                                className="excel-select cr-on-col-select"
-                                value={j.onRight.column}
-                                onChange={(e) => handleUpdateJoin(j.id, 'onRightColumn', e.target.value)}
-                              >
-                                <option value="">-- Columna ({j.table.name}) --</option>
-                                {rightCols.map(c => (
-                                  <option key={c.name} value={c.name}>{c.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* Botón para agregar más cruces */}
-                  <button
-                    className="excel-btn"
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      marginTop: '4px',
-                      justifyContent: 'center',
-                      backgroundColor: 'rgba(16, 124, 65, 0.08)',
-                      borderColor: 'var(--excel-green)',
-                      color: 'var(--excel-green-light)',
-                      fontWeight: 600,
-                      gap: '6px'
-                    }}
-                    onClick={handleAddManualJoin}
-                    disabled={!baseTable}
-                  >
-                    <Plus size={14} />
-                    <span>+ Agregar Otro Cruce (Unir otra tabla)</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* PANEL CENTRAL: Selección y Renombrado de Columnas */}
-            <div className="cr-panel-card cr-columns-panel">
-              <div className="cr-card-header">
-                <div className="cr-card-title">
-                  <span className="cr-step-number">2</span>
-                  <h3>Columnas del Reporte ({selectedColumns.length})</h3>
-                </div>
-              </div>
-
-              {participatingTables.length === 0 ? (
-                <div className="cr-empty-placeholder">
-                  <Info size={24} style={{ color: 'var(--text-muted)' }} />
-                  <p>Selecciona primero una tabla principal en el paso 1.</p>
-                </div>
-              ) : (
-                <div className="cr-columns-container">
-                  {/* Selector de Tabla para examinar columnas */}
-                  <div className="cr-table-tabs-bar">
-                    {participatingTables.map(t => {
-                      const countSelected = selectedColumns.filter(c => c.tableAlias === t.alias).length;
-                      return (
-                        <button
-                          key={t.alias}
-                          className={`cr-table-tab ${activeColumnTable === t.alias ? 'active' : ''}`}
-                          onClick={() => setActiveColumnTable(t.alias)}
-                        >
-                          <span>{t.name}</span>
-                          {countSelected > 0 && <span className="cr-col-badge">{countSelected}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Barra de búsqueda y acciones rápidas */}
-                  <div className="cr-columns-filter-bar">
-                    <input
-                      type="text"
-                      className="excel-input cr-search-input"
-                      placeholder="Buscar columna..."
-                      value={columnSearchQuery}
-                      onChange={(e) => setColumnSearchQuery(e.target.value)}
-                    />
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button
-                        className="excel-btn"
-                        style={{ fontSize: '11px', padding: '2px 8px' }}
-                        onClick={() => handleSelectAllColumnsOfTable(activeColumnTable)}
-                      >
-                        Marcar todas
-                      </button>
-                      <button
-                        className="excel-btn"
-                        style={{ fontSize: '11px', padding: '2px 8px' }}
-                        onClick={() => handleDeselectAllColumnsOfTable(activeColumnTable)}
-                      >
-                        Desmarcar
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Lista de Columnas de la tabla seleccionada */}
-                  <div className="cr-columns-grid">
-                    {(() => {
-                      const curTable = participatingTables.find(t => t.alias === activeColumnTable);
-                      if (!curTable) return null;
-                      const cols = columnsCache[`${curTable.schema}.${curTable.name}`] || [];
-                      const filtered = cols.filter(c => c.name.toLowerCase().includes(columnSearchQuery.toLowerCase()));
-
-                      if (filtered.length === 0) {
-                        return <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '12px' }}>No se encontraron columnas.</div>;
-                      }
-
-                      return filtered.map(col => {
-                        const selObj = selectedColumns.find(c => c.tableAlias === curTable.alias && c.column === col.name);
-                        const isSelected = Boolean(selObj);
-
-                        return (
-                          <div key={col.name} className={`cr-column-item ${isSelected ? 'selected' : ''}`}>
-                            <label className="cr-col-checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleToggleColumn(curTable.alias, col.name)}
-                                style={{ accentColor: 'var(--excel-green-light)', cursor: 'pointer' }}
-                              />
-                              <span className="cr-col-orig-name">{col.name}</span>
-                              <span className="cr-col-type-tag">{col.type}</span>
-                            </label>
-
-                            {isSelected && (
-                              <div className="cr-col-alias-box">
-                                <span className="cr-col-as-text">como:</span>
-                                <input
-                                  type="text"
-                                  className="excel-input cr-alias-input"
-                                  value={selObj.label}
-                                  onChange={(e) => handleUpdateColumnLabel(curTable.alias, col.name, e.target.value)}
-                                  placeholder={col.name}
-                                  title="Nombre de la columna en el encabezado del reporte"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* PANEL DERECHO: Filtros Avanzados y Ordenamiento */}
-            <div className="cr-panel-card">
-              <div className="cr-card-header">
-                <div className="cr-card-title">
-                  <span className="cr-step-number">3</span>
-                  <h3>Filtros y Ordenamiento</h3>
-                </div>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button
-                    className="excel-btn"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                    onClick={handleAddFilter}
-                    disabled={participatingTables.length === 0}
-                  >
-                    <Plus size={13} />
-                    <span>Filtro</span>
-                  </button>
-                  <button
-                    className="excel-btn"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                    onClick={handleAddSort}
-                    disabled={participatingTables.length === 0}
-                  >
-                    <ArrowUpDown size={13} />
-                    <span>Orden</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Filtros */}
-              <div className="cr-filters-section">
-                <label className="cr-label"><strong>Condiciones de Filtrado ({filters.length}):</strong></label>
-                {filters.length === 0 ? (
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                    Sin filtros (se consultarán todas las filas). Haz clic en <strong>"+ Filtro"</strong> para acotar datos.
-                  </div>
-                ) : (
-                  <div className="cr-rules-list">
-                    {filters.map((f, idx) => {
-                      const curTable = participatingTables.find(t => t.alias === f.tableAlias);
-                      const cols = curTable ? (columnsCache[`${curTable.schema}.${curTable.name}`] || []) : [];
-                      const opMeta = ALLOWED_OPERATORS.find(o => o.value === f.operator) || ALLOWED_OPERATORS[0];
-
-                      return (
-                        <div key={f.id} className="cr-rule-item">
-                          {idx > 0 && (
-                            <select
-                              className="excel-select cr-logic-select"
-                              value={f.logic}
-                              onChange={(e) => handleUpdateFilter(f.id, 'logic', e.target.value)}
-                            >
-                              <option value="AND">Y (AND)</option>
-                              <option value="OR">O (OR)</option>
-                            </select>
-                          )}
-
-                          <div className="cr-rule-row">
-                            <select
-                              className="excel-select cr-rule-table-select"
-                              value={f.tableAlias}
-                              onChange={(e) => handleUpdateFilter(f.id, 'tableAlias', e.target.value)}
-                            >
-                              {participatingTables.map(t => (
-                                <option key={t.alias} value={t.alias}>{t.name}</option>
-                              ))}
-                            </select>
-
-                            <select
-                              className="excel-select cr-rule-col-select"
-                              value={f.column}
-                              onChange={(e) => handleUpdateFilter(f.id, 'column', e.target.value)}
-                            >
-                              {cols.map(c => (
-                                <option key={c.name} value={c.name}>{c.name}</option>
-                              ))}
-                            </select>
-
-                            <select
-                              className="excel-select cr-rule-op-select"
-                              value={f.operator}
-                              onChange={(e) => handleUpdateFilter(f.id, 'operator', e.target.value)}
-                            >
-                              {ALLOWED_OPERATORS.map(op => (
-                                <option key={op.value} value={op.value}>{op.label}</option>
-                              ))}
-                            </select>
-
-                            {!opMeta.unary && (
-                              <input
-                                type="text"
-                                className="excel-input cr-rule-val-input"
-                                value={f.value}
-                                onChange={(e) => handleUpdateFilter(f.id, 'value', e.target.value)}
-                                placeholder={opMeta.between ? "Desde" : "Valor..."}
-                              />
-                            )}
-
-                            {opMeta.between && (
-                              <input
-                                type="text"
-                                className="excel-input cr-rule-val-input"
-                                value={f.value2}
-                                onChange={(e) => handleUpdateFilter(f.id, 'value2', e.target.value)}
-                                placeholder="Hasta"
-                              />
-                            )}
-
-                            <button
-                              className="cr-icon-btn danger"
-                              onClick={() => handleDeleteFilter(f.id)}
-                              title="Eliminar condición"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Ordenamiento */}
-              <div className="cr-sorts-section">
-                <label className="cr-label"><strong>Ordenamiento de Resultados ({sorts.length}):</strong></label>
-                {sorts.length === 0 ? (
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    Orden por defecto del motor. Haz clic en <strong>"+ Orden"</strong> para ordenar por columnas.
-                  </div>
-                ) : (
-                  <div className="cr-rules-list">
-                    {sorts.map(s => {
-                      const curTable = participatingTables.find(t => t.alias === s.tableAlias);
-                      const cols = curTable ? (columnsCache[`${curTable.schema}.${curTable.name}`] || []) : [];
-
-                      return (
-                        <div key={s.id} className="cr-rule-row">
-                          <select
-                            className="excel-select cr-rule-table-select"
-                            value={s.tableAlias}
-                            onChange={(e) => handleUpdateSort(s.id, 'tableAlias', e.target.value)}
-                          >
-                            {participatingTables.map(t => (
-                              <option key={t.alias} value={t.alias}>{t.name}</option>
-                            ))}
-                          </select>
-
-                          <select
-                            className="excel-select cr-rule-col-select"
-                            value={s.column}
-                            onChange={(e) => handleUpdateSort(s.id, 'column', e.target.value)}
-                          >
-                            {cols.map(c => (
-                              <option key={c.name} value={c.name}>{c.name}</option>
-                            ))}
-                          </select>
-
-                          <select
-                            className="excel-select cr-rule-op-select"
-                            value={s.direction}
-                            onChange={(e) => handleUpdateSort(s.id, 'direction', e.target.value)}
-                          >
-                            <option value="ASC">Ascendente (A-Z, 0-9)</option>
-                            <option value="DESC">Descendente (Z-A, 9-0)</option>
-                          </select>
-
-                          <button
-                            className="cr-icon-btn danger"
-                            onClick={() => handleDeleteSort(s.id)}
-                            title="Eliminar criterio de orden"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* VISTA DE RESULTADOS (SPREADSHEET PREVIEW) */
-          <div className="cr-results-layout">
-            {/* Barra de Acciones de Resultados */}
-            <div className="cr-results-toolbar">
-              <div className="cr-results-stats">
-                <div className="cr-stat-total-card" title="Cantidad total de registros encontrados por la consulta">
-                  <span className="cr-stat-total-label">TOTAL DE FILAS:</span>
-                  <span className="cr-stat-total-num">{totalRows.toLocaleString()}</span>
-                </div>
-                {executionTime !== null && (
-                  <span className="cr-stat-pill">
-                    ⏱️ <strong>{executionTime} ms</strong>
-                  </span>
-                )}
-                <span className="cr-stat-pill">
-                  Página <strong>{page}</strong> de <strong>{totalPages || 1}</strong>
-                </span>
-                {isDistinct && (
-                  <span
-                    className="cr-stat-pill"
-                    style={{
-                      backgroundColor: 'rgba(16, 124, 65, 0.2)',
-                      color: 'var(--excel-green-light)',
-                      borderColor: 'rgba(16, 124, 65, 0.4)',
-                      fontWeight: 600
-                    }}
-                  >
-                    ✨ Sin Duplicados (DISTINCT)
-                  </span>
-                )}
-              </div>
-
-              <div className="cr-results-actions">
-                {/* Botón para Eliminar Duplicados del reporte */}
-                <button
-                  className={`excel-btn ${isDistinct ? 'primary' : ''}`}
-                  onClick={handleToggleDistinct}
-                  disabled={isExecuting}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: isDistinct ? 'var(--excel-green)' : 'var(--excel-bg-app)',
-                    borderColor: isDistinct ? 'var(--excel-green)' : 'var(--excel-border)',
-                    color: isDistinct ? '#ffffff' : 'var(--text-primary)',
-                    fontWeight: isDistinct ? 600 : 500
-                  }}
-                  title={isDistinct ? 'Filtrado de duplicados activo. Haz clic para restaurar todas las filas.' : 'Eliminar todas las filas duplicadas de este reporte usando SQL DISTINCT.'}
-                >
-                  <Sparkles size={14} style={{ color: isDistinct ? '#ffffff' : '#ffd54f' }} />
-                  <span>{isDistinct ? '✓ Duplicados Eliminados' : '🧹 Eliminar Duplicados'}</span>
-                </button>
-
-                <button
-                  className="excel-btn"
-                  onClick={() => setShowSqlViewer(!showSqlViewer)}
-                  title="Ver la consulta SQL Server generada"
-                >
-                  <Code2 size={14} />
-                  <span>{showSqlViewer ? 'Ocultar SQL' : 'Ver SQL'}</span>
-                </button>
-
-                <button
-                  className="excel-btn"
-                  onClick={handleExportCsv}
-                  disabled={reportData.length === 0}
-                  title="Exportar la vista de página actual en formato CSV"
-                >
-                  <Download size={14} />
-                  <span>Exportar Vista (CSV)</span>
-                </button>
-
-                <button
-                  className="excel-btn primary"
-                  onClick={handleExportExcel}
-                  disabled={isExportingExcel || reportData.length === 0}
-                  style={{ backgroundColor: 'var(--excel-green)', borderColor: 'var(--excel-green)' }}
-                  title="Exportar todas las filas del reporte a un archivo Excel (.xlsx)"
-                >
-                  <Download size={14} className={isExportingExcel ? 'animate-spin' : ''} />
-                  <span>{isExportingExcel ? 'Generando .xlsx...' : 'Descargar Excel (.xlsx)'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Visor de Consulta SQL */}
-            {showSqlViewer && generatedSql && (
-              <div className="cr-sql-viewer">
-                <div className="cr-sql-header">
-                  <span>Consulta SQL Server generada (Auditable):</span>
-                  <button
-                    className="excel-btn"
-                    style={{ fontSize: '11px', padding: '2px 8px' }}
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedSql);
-                      setCopiedSql(true);
-                      setTimeout(() => setCopiedSql(false), 2000);
-                    }}
-                  >
-                    {copiedSql ? <Check size={12} /> : <Copy size={12} />}
-                    <span>{copiedSql ? 'Copiado' : 'Copiar SQL'}</span>
-                  </button>
-                </div>
-                <pre className="cr-sql-code">{generatedSql}</pre>
-              </div>
-            )}
-
-            {/* Grilla de Resultados */}
-            <div className="cr-spreadsheet-container">
-              {reportData.length === 0 ? (
-                <div className="cr-empty-results">
-                  <FileSpreadsheet size={36} style={{ color: 'var(--text-muted)' }} />
-                  <p>No hay datos disponibles para mostrar.</p>
-                  <button
-                    className="excel-btn primary"
-                    onClick={() => handleExecuteQuery(1, limit)}
-                    style={{ marginTop: '12px' }}
-                  >
-                    <Play size={14} />
-                    <span>Ejecutar Consulta</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="cr-table-scroll-wrapper">
-                  <table className="cr-data-table">
-                    <thead>
-                      <tr>
-                        <th className="cr-th-row-num">#</th>
-                        {reportResultColumns.map(col => (
-                          <th key={col.label} title={`${col.tableAlias}.${col.column}`}>
-                            {col.label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reportData.map((row, rIdx) => (
-                        <tr key={rIdx}>
-                          <td className="cr-td-row-num">{(page - 1) * limit + rIdx + 1}</td>
-                          {reportResultColumns.map(col => {
-                            const val = row[col.label];
-                            const isNull = val === null || val === undefined;
-                            return (
-                              <td key={col.label} className={isNull ? 'cr-cell-null' : ''}>
-                                {isNull ? <span className="null-tag">NULL</span> : String(val)}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Paginación Inferior */}
-            <div className="cr-pagination-bar">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Mostrar:</span>
-                <select
-                  className="excel-select"
-                  value={limit}
-                  onChange={(e) => {
-                    const newLimit = Number(e.target.value);
-                    setLimit(newLimit);
-                    handleExecuteQuery(1, newLimit);
-                  }}
-                >
-                  <option value={15}>15 filas</option>
-                  <option value={30}>30 filas</option>
-                  <option value={50}>50 filas</option>
-                  <option value={100}>100 filas</option>
-                </select>
-              </div>
-
-              <div className="cr-pagination-range">
-                <span>
-                  Mostrando registros <strong>{totalRows === 0 ? 0 : ((page - 1) * limit) + 1}</strong> - <strong>{Math.min(page * limit, totalRows)}</strong> de un total de <strong style={{ color: 'var(--excel-green-light)' }}>{totalRows.toLocaleString()}</strong> filas
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  className="excel-btn"
-                  onClick={() => handleExecuteQuery(page - 1, limit)}
-                  disabled={page <= 1 || isExecuting}
-                >
-                  <ChevronLeft size={16} />
-                  <span>Anterior</span>
-                </button>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Pág. <strong>{page}</strong> de <strong>{totalPages || 1}</strong>
-                </span>
-                <button
-                  className="excel-btn"
-                  onClick={() => handleExecuteQuery(page + 1, limit)}
-                  disabled={page >= totalPages || isExecuting}
-                >
-                  <span>Siguiente</span>
-                  <ChevronRight size={16} />
-                </button>
-              </div>
+        {uxMode === 'simple' && activeStep === 'builder' && (
+          <div className="ux-friendly-banner" style={{ margin: '8px 14px 0 14px' }}>
+            <div className="ux-friendly-banner-text">
+              <Sparkles size={16} className="ux-friendly-banner-icon" />
+              <span>
+                <strong>Asistente Fácil:</strong> 1. Elige tu tabla de partida • 2. Cruza con otras tablas para traer más datos • 3. Marca qué datos quieres ver en tu Excel.
+              </span>
             </div>
           </div>
         )}
+
+        {activeStep === 'builder' ? (
+          <div className="cr-builder-layout">
+            <JoinBuilderPanel
+              tables={tables}
+              baseTable={baseTable}
+              joins={joins}
+              suggestedJoins={suggestedJoins}
+              isLoadingSuggestions={isLoadingSuggestions}
+              columnsCache={columnsCache}
+              onSelectBaseTable={handleSelectBaseTable}
+              onAddManualJoin={handleAddManualJoin}
+              onApplySuggestedJoin={handleApplySuggestedJoin}
+              onUpdateJoin={handleUpdateJoin}
+              onDeleteJoin={handleDeleteJoin}
+              uxMode={uxMode}
+            />
+
+            <ColumnSelectorPanel
+              participatingTables={participatingTables}
+              selectedColumns={selectedColumns}
+              columnsCache={columnsCache}
+              activeColumnTable={activeColumnTable}
+              setActiveColumnTable={setActiveColumnTable}
+              columnSearchQuery={columnSearchQuery}
+              setColumnSearchQuery={setColumnSearchQuery}
+              onSelectAllColumnsOfTable={handleSelectAllColumnsOfTable}
+              onDeselectAllColumnsOfTable={handleDeselectAllColumnsOfTable}
+              onToggleColumn={handleToggleColumn}
+              onUpdateColumnLabel={handleUpdateColumnLabel}
+              uxMode={uxMode}
+            />
+
+            <FilterSortPanel
+              participatingTables={participatingTables}
+              filters={filters}
+              sorts={sorts}
+              columnsCache={columnsCache}
+              onAddFilter={handleAddFilter}
+              onUpdateFilter={handleUpdateFilter}
+              onDeleteFilter={handleDeleteFilter}
+              onAddSort={handleAddSort}
+              onUpdateSort={handleUpdateSort}
+              onDeleteSort={handleDeleteSort}
+              uxMode={uxMode}
+            />
+          </div>
+        ) : (
+          <ReportResultsGrid
+            totalRows={totalRows}
+            executionTime={executionTime}
+            page={page}
+            totalPages={totalPages}
+            isDistinct={isDistinct}
+            onToggleDistinct={handleToggleDistinct}
+            isExecuting={isExecuting}
+            showSqlViewer={showSqlViewer}
+            setShowSqlViewer={setShowSqlViewer}
+            onExportCsv={handleExportCsv}
+            isExportingExcel={isExportingExcel}
+            onExportExcel={handleExportExcel}
+            generatedSql={generatedSql}
+            copiedSql={copiedSql}
+            setCopiedSql={setCopiedSql}
+            reportData={reportData}
+            reportResultColumns={reportResultColumns}
+            limit={limit}
+            setLimit={setLimit}
+            onExecuteQuery={handleExecuteQuery}
+            uxMode={uxMode}
+          />
+        )}
       </div>
 
-      {/* Modal: Guardar Plantilla */}
-      {showSaveModal && (
-        <div className="modal-backdrop" onClick={() => setShowSaveModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Save size={18} style={{ color: 'var(--excel-green-light)' }} />
-                <h3>Guardar Plantilla de Reporte</h3>
-              </div>
-              <button className="modal-close-btn" onClick={() => setShowSaveModal(false)}><X size={16} /></button>
-            </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label className="cr-label"><strong>Nombre del Reporte:</strong></label>
-                <input
-                  type="text"
-                  className="excel-input"
-                  style={{ width: '100%', marginTop: '4px' }}
-                  value={tempReportName}
-                  onChange={(e) => setTempReportName(e.target.value)}
-                  placeholder="Ej. Ventas por Cliente y Ciudad"
-                />
-              </div>
-              <div>
-                <label className="cr-label"><strong>Descripción (Opcional):</strong></label>
-                <textarea
-                  className="excel-input"
-                  style={{ width: '100%', marginTop: '4px', minHeight: '70px', resize: 'vertical' }}
-                  value={tempReportDesc}
-                  onChange={(e) => setTempReportDesc(e.target.value)}
-                  placeholder="Descripción de qué tablas cruza y qué información entrega..."
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="excel-btn" onClick={() => setShowSaveModal(false)}>Cancelar</button>
-              <button
-                className="excel-btn primary"
-                onClick={handleSaveTemplate}
-                style={{ backgroundColor: 'var(--excel-green)', borderColor: 'var(--excel-green)' }}
-              >
-                Guardar en BD
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SaveTemplateModal
+        show={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        tempReportName={tempReportName}
+        setTempReportName={setTempReportName}
+        tempReportDesc={tempReportDesc}
+        setTempReportDesc={setTempReportDesc}
+        onSave={handleSaveTemplate}
+      />
 
-      {/* Modal: Mis Plantillas */}
-      {showTemplatesModal && (
-        <div className="modal-backdrop" onClick={() => setShowTemplatesModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FolderOpen size={18} style={{ color: 'var(--excel-green-light)' }} />
-                <h3>Plantillas de Reportes Guardadas</h3>
-              </div>
-              <button className="modal-close-btn" onClick={() => setShowTemplatesModal(false)}><X size={16} /></button>
-            </div>
-            <div className="modal-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              {templates.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
-                  No hay plantillas guardadas aún. Crea un reporte y guárdalo para reutilizarlo aquí.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {templates.map(tpl => (
-                    <div
-                      key={tpl.id}
-                      className="cr-template-item"
-                      onClick={() => handleLoadTemplate(tpl)}
-                    >
-                      <div style={{ flexGrow: 1 }}>
-                        <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', margin: 0 }}>{tpl.name}</h4>
-                        {tpl.description && (
-                          <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', margin: '3px 0 0 0' }}>{tpl.description}</p>
-                        )}
-                        <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'inline-block' }}>
-                          Actualizado: {tpl.updatedAt ? new Date(tpl.updatedAt).toLocaleString() : 'N/A'}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <button
-                          className="excel-btn primary"
-                          style={{ fontSize: '11px', padding: '3px 10px' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleLoadTemplate(tpl);
-                          }}
-                        >
-                          Cargar
-                        </button>
-                        <button
-                          className="cr-icon-btn danger"
-                          onClick={(e) => handleDeleteTemplate(tpl.id, e)}
-                          title="Eliminar plantilla"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button className="excel-btn" onClick={() => setShowTemplatesModal(false)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TemplatesModal
+        show={showTemplatesModal}
+        onClose={() => setShowTemplatesModal(false)}
+        templates={templates}
+        onLoadTemplate={handleLoadTemplate}
+        onDeleteTemplate={handleDeleteTemplate}
+      />
     </div>
   );
 }
