@@ -68,6 +68,15 @@ El sistema resuelve automáticamente las relaciones entre tablas (Foreign Keys),
 - Resolución en **lote** (una consulta por columna FK, no por fila) del valor legible referenciado — sin problema N+1.
 - FKs **virtuales/personalizadas**: define relaciones inexistentes a nivel de motor, con columna de visualización y filtro adicional, persistidas en base de datos (no en archivos locales).
 
+**Reportes Personalizados Multi-Tabla (Cruces / Joins)**
+- Constructor interactivo de consultas multi-tabla con soporte para `LEFT JOIN`, `INNER JOIN`, `RIGHT JOIN` y `FULL JOIN`.
+- Detección inteligente de cruces basados en relaciones de Claves Foráneas físicas y virtuales existentes.
+- Selección, proyección y renombrado de columnas (etiquetas/aliases personalizados) por cada tabla involucrada.
+- Motor de filtrado avanzado con múltiples condiciones lógicas (`AND`/`OR`), operadores relacionales (`LIKE`, `=`, `>`, `<`, `BETWEEN`, `IN`, `IS NULL`) y ordenamiento multi-columna.
+- Vista previa paginada en tiempo real con visor de consulta SQL auditable.
+- Exportación directa a Excel (`.xlsx`) en streaming y CSV.
+- Persistencia de plantillas de reportes en la tabla `dbo.push_custom_reports` en SQL Server.
+
 **Exportación de reportes**
 - `.xlsx` en streaming (Apache POI `SXSSFWorkbook`) con los valores de FK ya resueltos, límite de filas configurable y control de concurrencia.
 - `.csv` instantáneo del lado del cliente, sobre la página actualmente cargada.

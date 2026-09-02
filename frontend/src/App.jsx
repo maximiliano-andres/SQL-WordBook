@@ -3,8 +3,9 @@ import Ribbon from './components/Ribbon';
 import Spreadsheet from './components/Spreadsheet';
 import SheetTabs from './components/SheetTabs';
 import StatusBar from './components/StatusBar';
+import CustomReports from './components/CustomReports';
 import { fkStatusText } from './utils/fk';
-import { Server, X, BookOpen, Layers, Link2, Download, Lightbulb } from 'lucide-react';
+import { Server, X, BookOpen, Layers, Link2, Download, Lightbulb, Sparkles } from 'lucide-react';
 
 // Caracteres que Excel/Sheets pueden interpretar como inicio de fórmula al
 // abrir un CSV exportado ("CSV/Formula Injection"). Se neutralizan con un
@@ -16,6 +17,9 @@ function sanitizeForSpreadsheet(value) {
 }
 
 export default function App() {
+  // Vista activa: 'explorer' (Explorador de Tablas) | 'custom-reports' (Constructor de Reportes)
+  const [currentView, setCurrentView] = useState('explorer');
+
   // Estados de Base de Datos
   const [dbInfo, setDbInfo] = useState(null);
   const [tables, setTables] = useState([]);
@@ -402,44 +406,57 @@ export default function App() {
         setFkDisplayMode={setFkDisplayMode}
         onOpenDbaConsole={() => setShowDbaConsole(true)}
         onOpenManual={() => setShowManual(true)}
+        currentView={currentView}
+        setCurrentView={setCurrentView}
       />
 
-      {/* Grid de hoja de cálculo principal */}
-      <Spreadsheet
-        activeTable={activeTable}
-        data={data}
-        columns={columns}
-        isDataLoading={isDataLoading}
-        error={error}
-        totalRows={totalRows}
-        offset={(page - 1) * limit}
-        limit={limit}
-        fkColumns={fkColumns}
-        fkResolutions={fkResolutions}
-        fkDisplayMode={fkDisplayMode}
-        tables={tables}
-        onSaveCustomFk={handleSaveCustomFk}
-        onToggleFk={handleToggleFk}
-        onDeleteCustomFk={handleDeleteCustomFk}
-        appliedFilter={appliedFilter}
-        onApplyFilter={(filter) => { setAppliedFilter(filter); setPage(1); }}
-      />
+      {currentView === 'explorer' ? (
+        <>
+          {/* Grid de hoja de cálculo principal */}
+          <Spreadsheet
+            activeTable={activeTable}
+            data={data}
+            columns={columns}
+            isDataLoading={isDataLoading}
+            error={error}
+            totalRows={totalRows}
+            offset={(page - 1) * limit}
+            limit={limit}
+            fkColumns={fkColumns}
+            fkResolutions={fkResolutions}
+            fkDisplayMode={fkDisplayMode}
+            tables={tables}
+            onSaveCustomFk={handleSaveCustomFk}
+            onToggleFk={handleToggleFk}
+            onDeleteCustomFk={handleDeleteCustomFk}
+            appliedFilter={appliedFilter}
+            onApplyFilter={(filter) => { setAppliedFilter(filter); setPage(1); }}
+          />
 
-      {/* Pestañas de Hojas Inferiores (Lista de Tablas) */}
-      <SheetTabs 
-        tables={tables}
-        activeTable={activeTable}
-        onSelectTable={handleSelectTable}
-      />
+          {/* Pestañas de Hojas Inferiores (Lista de Tablas) */}
+          <SheetTabs 
+            tables={tables}
+            activeTable={activeTable}
+            onSelectTable={handleSelectTable}
+          />
 
-      {/* Barra de estado inferior de Excel */}
-      <StatusBar 
-        activeTable={activeTable}
-        totalRows={totalRows}
-        limit={limit}
-        offset={(page - 1) * limit}
-        responseTime={responseTime}
-      />
+          {/* Barra de estado inferior de Excel */}
+          <StatusBar 
+            activeTable={activeTable}
+            totalRows={totalRows}
+            limit={limit}
+            offset={(page - 1) * limit}
+            responseTime={responseTime}
+          />
+        </>
+      ) : (
+        /* Módulo Completo de Reportes Personalizados Multi-Tabla (Cruces y Filtros) */
+        <CustomReports 
+          tables={tables}
+          columnsCache={columnsCache}
+          setColumnsCache={setColumnsCache}
+        />
+      )}
 
       {/* Modal de Consola DBA (Rendimiento y Seguridad Experto) */}
       {showDbaConsole && dbInfo && (
@@ -694,6 +711,28 @@ export default function App() {
                   Exportaciones
                 </button>
                 <button
+                  onClick={() => setManualTab('custom_reports')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '12px 20px',
+                    border: 'none',
+                    background: manualTab === 'custom_reports' ? 'var(--excel-bg-active)' : 'none',
+                    color: manualTab === 'custom_reports' ? 'var(--excel-green-light)' : 'var(--text-secondary)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '12.5px',
+                    fontWeight: manualTab === 'custom_reports' ? '700' : '500',
+                    borderLeft: manualTab === 'custom_reports' ? '3px solid var(--excel-green)' : '3px solid transparent',
+                    outline: 'none',
+                    width: '100%'
+                  }}
+                >
+                  <Sparkles size={15} />
+                  Reportes y Cruces
+                </button>
+                <button
                   onClick={() => setManualTab('tips')}
                   style={{
                     display: 'flex',
@@ -827,6 +866,41 @@ export default function App() {
                       <span>
                         <strong>Seguridad:</strong> La exportación cuenta con límites concurrentes para evitar la saturación de conexiones y salvaguardar el rendimiento de tu base de datos productiva.
                       </span>
+                    </div>
+                  </div>
+                )}
+
+                {manualTab === 'custom_reports' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '24px' }}>📊</span>
+                      <h4 style={{ margin: 0, fontSize: '18px', color: '#fff' }}>Constructor de Reportes Personalizados</h4>
+                    </div>
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.6' }}>
+                      Permite cruzar múltiples tablas (LEFT JOIN, INNER JOIN), seleccionar columnas de diferentes fuentes, aplicar filtros dinámicos y exportar reportes consolidados:
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+                      <div style={{ backgroundColor: 'var(--excel-bg-app)', border: '1px solid var(--excel-border)', padding: '14px', borderRadius: '8px' }}>
+                        <h5 style={{ margin: '0 0 6px 0', fontSize: '13px', color: 'var(--excel-green-light)' }}>1. Detección Inteligente de Cruces (FKs)</h5>
+                        <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                          Al seleccionar tu tabla principal, el sistema detecta automáticamente las relaciones de Claves Foráneas (reales y virtuales) y te permite unirlas con un solo clic.
+                        </p>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--excel-bg-app)', border: '1px solid var(--excel-border)', padding: '14px', borderRadius: '8px' }}>
+                        <h5 style={{ margin: '0 0 6px 0', fontSize: '13px', color: 'var(--excel-green-light)' }}>2. Selección y Renombrado de Columnas</h5>
+                        <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                          Elige qué columnas incluir de cada tabla y asígnales nombres amigables (aliases) que aparecerán directamente en el encabezado de tu archivo Excel.
+                        </p>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--excel-bg-app)', border: '1px solid var(--excel-border)', padding: '14px', borderRadius: '8px' }}>
+                        <h5 style={{ margin: '0 0 6px 0', fontSize: '13px', color: 'var(--excel-green-light)' }}>3. Plantillas Reutilizables en Base de Datos</h5>
+                        <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                          Guarda tus consultas complejas con un nombre y descripción. Quedarán almacenadas en la base de datos para que puedas ejecutarlas o modificarlas en cualquier momento.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}

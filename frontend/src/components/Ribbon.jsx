@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Database, RefreshCw, Download, Info, Settings,
   ChevronLeft, ChevronRight, Table, Cpu, ShieldAlert, Link2,
-  HelpCircle
+  HelpCircle, Layers
 } from 'lucide-react';
 
 export default function Ribbon({
@@ -26,7 +26,9 @@ export default function Ribbon({
   fkDisplayMode = 'both',
   setFkDisplayMode,
   onOpenDbaConsole,
-  onOpenManual
+  onOpenManual,
+  currentView = 'explorer',
+  setCurrentView = () => {}
 }) {
   const [activeTab, setActiveTab] = useState('home'); // 'home', 'data', 'about'
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
@@ -44,6 +46,27 @@ export default function Ribbon({
           <img src="/logo.png" alt="Logo" className="excel-logo" />
           <h1 className="app-title">SQL Server <span>Workbook</span></h1>
         </div>
+
+        {/* Selector de Modo de Trabajo Principal */}
+        <div className="view-mode-switcher">
+          <button
+            className={`view-mode-btn ${currentView === 'explorer' ? 'active' : ''}`}
+            onClick={() => setCurrentView('explorer')}
+            title="Explorador de tablas individuales estilo Excel"
+          >
+            <Table size={13} />
+            <span>Explorador de Tablas</span>
+          </button>
+          <button
+            className={`view-mode-btn ${currentView === 'custom-reports' ? 'active' : ''}`}
+            onClick={() => setCurrentView('custom-reports')}
+            title="Constructor y visor de reportes personalizados con cruces multi-tabla (Joins)"
+          >
+            <Layers size={13} style={{ color: currentView === 'custom-reports' ? '#fff' : 'var(--excel-green-light)' }} />
+            <span>Reportes Personalizados (Cruces)</span>
+          </button>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             className="excel-btn"
@@ -61,32 +84,44 @@ export default function Ribbon({
         </div>
       </div>
 
-      {/* Pestañas de la cinta de opciones */}
-      <div className="ribbon-tabs">
-        <button
-          className={`ribbon-tab ${activeTab === 'home' ? 'active' : ''}`}
-          onClick={() => handleToggleTab('home')}
-          title="Controles principales: Paginación, navegación de registros y visualización de Claves Foráneas (FK)"
-        >
-          Inicio
-        </button>
-        <button
-          className={`ribbon-tab ${activeTab === 'data' ? 'active' : ''}`}
-          onClick={() => handleToggleTab('data')}
-          title="Herramientas de datos: Exportación completa a Excel (.xlsx), CSV, y configuración de columnas del reporte"
-        >
-          Descargar Reporte
-        </button>
-        <button
-          className={`ribbon-tab ${activeTab === 'about' ? 'active' : ''}`}
-          onClick={() => handleToggleTab('about')}
-          title="Detalles del sistema: Optimización del motor de base de datos, seguridad y tiempos de respuesta"
-        >
-          Rendimiento y Seguridad
-        </button>
-      </div>
+      {/* Pestañas de la cinta de opciones (solo para modo explorador) */}
+      {currentView === 'explorer' && (
+        <div className="ribbon-tabs">
+          <button
+            className={`ribbon-tab ${activeTab === 'home' ? 'active' : ''}`}
+            onClick={() => handleToggleTab('home')}
+            title="Controles principales: Paginación, navegación de registros y visualización de Claves Foráneas (FK)"
+          >
+            Inicio
+          </button>
+          <button
+            className={`ribbon-tab ${activeTab === 'data' ? 'active' : ''}`}
+            onClick={() => handleToggleTab('data')}
+            title="Herramientas de datos: Exportación completa a Excel (.xlsx), CSV, y configuración de columnas del reporte"
+          >
+            Descargar Reporte
+          </button>
+          <button
+            className={`ribbon-tab ${activeTab === 'about' ? 'active' : ''}`}
+            onClick={() => handleToggleTab('about')}
+            title="Detalles del sistema: Optimización del motor de base de datos, seguridad y tiempos de respuesta"
+          >
+            Rendimiento y Seguridad
+          </button>
+          <button
+            className="ribbon-tab"
+            style={{ marginLeft: 'auto', color: 'var(--excel-green-light)', fontWeight: 600 }}
+            onClick={() => setCurrentView('custom-reports')}
+            title="Abrir el generador de reportes personalizados y cruces multi-tabla"
+          >
+            <Layers size={13} style={{ marginRight: '4px', verticalAlign: '-2px' }} />
+            Ir a Reportes Personalizados →
+          </button>
+        </div>
+      )}
 
       {/* Controles de la cinta según la pestaña activa */}
+      {currentView === 'explorer' && (
       <div className="ribbon-controls">
         {activeTab === 'home' && (
           <>
@@ -337,6 +372,7 @@ export default function Ribbon({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

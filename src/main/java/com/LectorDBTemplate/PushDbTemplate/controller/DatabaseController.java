@@ -153,6 +153,74 @@ public class DatabaseController {
         return ResponseEntity.ok().build();
     }
 
+    // =========================================================================
+    // --- ENDPOINTS PARA REPORTES PERSONALIZADOS MULTI-TABLA ---
+    // =========================================================================
+
+    /**
+     * Retorna sugerencias inteligentes de cruces (Joins) basados en FKs para una tabla.
+     */
+    @GetMapping("/custom-reports/suggest-joins")
+    public ResponseEntity<List<DatabaseService.SuggestedJoin>> suggestJoins(
+            @RequestParam String schema,
+            @RequestParam String table) {
+        return ResponseEntity.ok(databaseService.suggestJoinsForTable(schema, table));
+    }
+
+    /**
+     * Ejecuta la vista previa paginada de un reporte personalizado multi-tabla.
+     */
+    @PostMapping("/custom-reports/preview")
+    public ResponseEntity<DatabaseService.CustomReportResult> previewCustomReport(
+            @RequestBody DatabaseService.CustomReportQuery query) {
+        return ResponseEntity.ok(databaseService.executeCustomReportPreview(query));
+    }
+
+    /**
+     * Exporta el reporte personalizado multi-tabla a un archivo Excel (.xlsx).
+     */
+    @PostMapping("/custom-reports/export")
+    public void exportCustomReport(
+            @RequestBody DatabaseService.CustomReportQuery query,
+            jakarta.servlet.http.HttpServletResponse response) throws Exception {
+
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        String filename = "reporte_personalizado_" + System.currentTimeMillis() + ".xlsx";
+
+        org.springframework.http.ContentDisposition contentDisposition = org.springframework.http.ContentDisposition.builder("attachment")
+                .filename(filename, java.nio.charset.StandardCharsets.UTF_8)
+                .build();
+        response.setHeader(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
+
+        databaseService.exportCustomReportToExcel(query, response.getOutputStream());
+    }
+
+    /**
+     * Retorna todas las plantillas de reportes guardadas.
+     */
+    @GetMapping("/custom-reports/templates")
+    public ResponseEntity<List<DatabaseService.ReportTemplate>> getReportTemplates() {
+        return ResponseEntity.ok(databaseService.getReportTemplates());
+    }
+
+    /**
+     * Guarda o actualiza una plantilla de reporte personalizado.
+     */
+    @PostMapping("/custom-reports/templates")
+    public ResponseEntity<DatabaseService.ReportTemplate> saveReportTemplate(
+            @RequestBody DatabaseService.ReportTemplate template) {
+        return ResponseEntity.ok(databaseService.saveReportTemplate(template));
+    }
+
+    /**
+     * Elimina una plantilla de reporte por ID.
+     */
+    @DeleteMapping("/custom-reports/templates/{id}")
+    public ResponseEntity<Void> deleteReportTemplate(@PathVariable String id) {
+        databaseService.deleteReportTemplate(id);
+        return ResponseEntity.noContent().build();
+    }
+
     // --- Manejo Centralizado de Excepciones para una API Profesional ---
 
     @ExceptionHandler(SecurityException.class)
@@ -168,6 +236,15 @@ public class DatabaseController {
     @ExceptionHandler(DatabaseService.TooManyExportsException.class)
     public ResponseEntity<Map<String, String>> handleTooManyExportsException(DatabaseService.TooManyExportsException ex) {
         return ResponseEntity.status(429).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+    public ResponseEntity<Map<String, String>> handleDataAccessException(org.springframework.dao.DataAccessException ex) {
+        log.error("Error de base de datos al ejecutar consulta: {}", ex.getMessage());
+        String rootMsg = (ex.getRootCause() != null && ex.getRootCause().getMessage() != null)
+                ? ex.getRootCause().getMessage()
+                : ex.getMessage();
+        return ResponseEntity.status(400).body(Map.of("error", "Error SQL: " + rootMsg));
     }
 
     @ExceptionHandler(Exception.class)

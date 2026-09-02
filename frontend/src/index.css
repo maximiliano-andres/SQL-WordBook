@@ -1149,3 +1149,900 @@ body {
   justify-content: flex-end;
   background-color: var(--excel-bg-header);
 }
+
+/* ========================================================================= */
+/* --- VIEW MODE SWITCHER & CUSTOM REPORTS WORKSPACE --- */
+/* ========================================================================= */
+
+.view-mode-switcher {
+  display: flex;
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.view-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.view-mode-btn:hover {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.view-mode-btn.active {
+  background-color: var(--excel-green);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Workspace Layout */
+.custom-reports-workspace {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  height: calc(100vh - 42px);
+  background-color: var(--excel-bg-app);
+  overflow: hidden;
+}
+
+/* Top Header */
+.cr-top-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  background-color: var(--excel-bg-sidebar);
+  border-bottom: 1px solid var(--excel-border);
+  flex-shrink: 0;
+}
+
+.cr-title-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cr-badge-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(16, 124, 65, 0.15);
+  color: var(--excel-green-light);
+  border: 1px solid rgba(16, 124, 65, 0.3);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.cr-title-edit-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.cr-report-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cr-report-desc {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.cr-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cr-view-pills {
+  display: flex;
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.cr-view-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cr-view-pill.active {
+  background-color: var(--excel-bg-active);
+  color: var(--excel-green-light);
+  font-weight: 600;
+}
+
+/* Error Banner */
+.cr-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: rgba(239, 68, 68, 0.12);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  padding: 8px 18px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.cr-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.cr-icon-btn:hover {
+  background-color: var(--excel-bg-active);
+  color: var(--text-primary);
+}
+
+.cr-icon-btn.danger:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+/* Body Content */
+.cr-body-content {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+/* 3-Column Builder Layout */
+.cr-builder-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1.2fr 1.2fr;
+  gap: 14px;
+  padding: 14px;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.cr-panel-card {
+  background-color: var(--excel-bg-sidebar);
+  border: 1px solid var(--excel-border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.cr-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background-color: var(--excel-bg-header);
+  border-bottom: 1px solid var(--excel-border);
+  flex-shrink: 0;
+}
+
+.cr-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cr-card-title h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cr-step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background-color: var(--excel-green);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.cr-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.cr-section-block {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.cr-wide-select {
+  width: 100%;
+  font-size: 12px;
+  height: 32px;
+}
+
+/* FK Suggestions */
+.cr-suggestions-container {
+  padding: 10px 14px;
+  background-color: rgba(255, 213, 79, 0.03);
+  border-bottom: 1px solid var(--excel-border);
+}
+
+.cr-suggestions-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #ffd54f;
+  margin-bottom: 8px;
+}
+
+.cr-suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.cr-suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  border-radius: 6px;
+  gap: 8px;
+}
+
+.cr-suggestion-item.added {
+  opacity: 0.6;
+  border-color: rgba(16, 124, 65, 0.3);
+}
+
+.cr-sug-desc {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+/* Joins List */
+.cr-joins-list {
+  padding: 12px 14px;
+  overflow-y: auto;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cr-join-card {
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cr-join-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding-bottom: 6px;
+}
+
+.cr-join-idx {
+  font-size: 10.5px;
+  font-weight: bold;
+  color: var(--excel-green-light);
+}
+
+.cr-join-type-select {
+  flex-grow: 1;
+  font-size: 11px;
+  height: 26px;
+  font-weight: 600;
+}
+
+.cr-join-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cr-field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cr-field-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  width: 75px;
+  flex-shrink: 0;
+}
+
+.cr-join-target-select {
+  flex-grow: 1;
+  font-size: 11px;
+  height: 26px;
+}
+
+/* Table Network Chain Diagram */
+.cr-chain-container {
+  padding: 8px 14px;
+  background-color: var(--excel-bg-header);
+  border-bottom: 1px solid var(--excel-border);
+}
+
+.cr-chain-title {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cr-tables-chain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cr-chain-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.cr-chain-badge.base {
+  background-color: rgba(16, 124, 65, 0.2);
+  color: var(--excel-green-light);
+  border-color: rgba(16, 124, 65, 0.4);
+}
+
+.cr-chain-badge.join {
+  background-color: var(--excel-bg-app);
+  color: #64b5f6;
+  border-color: rgba(100, 181, 246, 0.3);
+}
+
+.cr-chain-arrow {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.cr-join-condition-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background-color: var(--excel-bg-sidebar);
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px dashed var(--excel-border);
+}
+
+.cr-on-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--excel-green-light);
+}
+
+.cr-join-condition-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cr-on-table-select {
+  flex: 1.1;
+  font-size: 11px;
+  height: 24px;
+  min-width: 90px;
+  font-weight: 600;
+  color: var(--excel-green-light);
+}
+
+.cr-on-col-select {
+  flex: 1;
+  font-size: 11px;
+  height: 24px;
+  min-width: 90px;
+}
+
+.cr-equal-sign {
+  font-weight: bold;
+  color: var(--text-secondary);
+  padding: 0 2px;
+}
+
+/* Columns Panel */
+.cr-columns-container {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.cr-table-tabs-bar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background-color: var(--excel-bg-app);
+  border-bottom: 1px solid var(--excel-border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.cr-table-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--excel-border);
+  background-color: var(--excel-bg-sidebar);
+  color: var(--text-secondary);
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cr-table-tab.active {
+  background-color: var(--excel-bg-active);
+  color: var(--text-primary);
+  border-color: var(--excel-green-light);
+  font-weight: 600;
+}
+
+.cr-col-badge {
+  background-color: var(--excel-green);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 5px;
+  font-size: 9.5px;
+  font-weight: bold;
+}
+
+.cr-columns-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cr-search-input {
+  height: 26px;
+  font-size: 11px;
+  flex-grow: 1;
+}
+
+.cr-columns-grid {
+  padding: 10px 12px;
+  overflow-y: auto;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cr-column-item {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  border-radius: 5px;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.cr-column-item.selected {
+  border-color: rgba(16, 124, 65, 0.5);
+  background-color: rgba(16, 124, 65, 0.05);
+}
+
+.cr-col-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cr-col-orig-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.cr-col-type-tag {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  background-color: var(--excel-bg-sidebar);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+.cr-col-alias-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 20px;
+}
+
+.cr-col-as-text {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.cr-alias-input {
+  height: 22px;
+  font-size: 11px;
+  flex-grow: 1;
+  padding: 2px 6px;
+}
+
+/* Filters & Sorts Section */
+.cr-filters-section,
+.cr-sorts-section {
+  padding: 12px 14px;
+  overflow-y: auto;
+  flex: 1;
+  border-bottom: 1px solid var(--excel-border);
+}
+
+.cr-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cr-rule-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cr-logic-select {
+  width: 90px;
+  height: 22px;
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--excel-green-light);
+  margin-bottom: 2px;
+}
+
+.cr-rule-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.cr-rule-table-select {
+  width: 100px;
+  font-size: 11px;
+  height: 26px;
+}
+
+.cr-rule-col-select {
+  flex: 1;
+  font-size: 11px;
+  height: 26px;
+  min-width: 0;
+}
+
+.cr-rule-op-select {
+  width: 120px;
+  font-size: 10.5px;
+  height: 26px;
+}
+
+.cr-rule-val-input {
+  flex: 1;
+  font-size: 11px;
+  height: 26px;
+  min-width: 0;
+}
+
+/* Results Layout */
+.cr-results-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.cr-results-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 18px;
+  background-color: var(--excel-bg-sidebar);
+  border-bottom: 1px solid var(--excel-border);
+  flex-shrink: 0;
+}
+
+.cr-results-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cr-stat-pill {
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+
+.cr-results-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* SQL Viewer */
+.cr-sql-viewer {
+  background-color: #06090e;
+  border-bottom: 1px solid var(--excel-border);
+  padding: 10px 18px;
+  flex-shrink: 0;
+}
+
+.cr-sql-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.cr-sql-code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #7ee787;
+  white-space: pre-wrap;
+  margin: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  background-color: rgba(0, 0, 0, 0.4);
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--excel-border);
+}
+
+/* Results Spreadsheet Grid */
+.cr-spreadsheet-container {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+  background-color: var(--excel-bg-app);
+}
+
+.cr-empty-results,
+.cr-empty-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 13px;
+  gap: 8px;
+}
+
+.cr-table-scroll-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+.cr-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.cr-data-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.cr-data-table th {
+  background-color: var(--excel-bg-header);
+  color: var(--text-primary);
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 12px;
+  border-right: 1px solid var(--excel-border);
+  border-bottom: 2px solid var(--excel-green);
+  white-space: nowrap;
+}
+
+.cr-th-row-num,
+.cr-td-row-num {
+  width: 45px;
+  text-align: center;
+  background-color: var(--excel-bg-row-num);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  border-right: 1px solid var(--excel-border);
+  position: sticky;
+  left: 0;
+  z-index: 5;
+}
+
+.cr-data-table td {
+  padding: 7px 12px;
+  border-right: 1px solid var(--excel-border-grid);
+  border-bottom: 1px solid var(--excel-border-grid);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.cr-data-table tr:hover td {
+  background-color: var(--excel-bg-active);
+}
+
+.cr-cell-null {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.null-tag {
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.cr-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 18px;
+  background-color: var(--excel-bg-sidebar);
+  border-top: 1px solid var(--excel-border);
+  flex-shrink: 0;
+}
+
+.cr-template-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cr-template-item:hover {
+  border-color: var(--excel-green);
+  background-color: var(--excel-bg-active);
+}
+
+/* Indicadores de Total de Filas */
+.cr-header-rows-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(16, 124, 65, 0.12);
+  border: 1px solid rgba(16, 124, 65, 0.35);
+  color: var(--text-primary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  margin-left: 8px;
+}
+
+.cr-header-rows-dot {
+  color: var(--excel-green-light);
+  font-size: 12px;
+}
+
+.cr-stat-total-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(16, 124, 65, 0.25) 0%, rgba(16, 124, 65, 0.08) 100%);
+  border: 1px solid rgba(16, 124, 65, 0.4);
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+
+.cr-stat-total-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--excel-green-light);
+  letter-spacing: 0.5px;
+}
+
+.cr-stat-total-num {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.cr-pagination-range {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+
