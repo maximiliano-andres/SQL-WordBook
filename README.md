@@ -1,473 +1,696 @@
 <div align="center">
 
-# PushDbTemplate
+# 📊 PushDbTemplate · SQL Server Workbook
 
-**Explorador y auditor de bases de datos SQL Server con interfaz tipo hoja de cálculo**
+### *Explorador inteligente, auditor DBA y generador de reportes multi-tabla con la magia de una hoja de cálculo.*
 
-[![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk&logoColor=white)](#requisitos-previos)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)](#tech-stack)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](#tech-stack)
-[![SQL Server](https://img.shields.io/badge/SQL%20Server-JDBC-CC2927?logo=microsoftsqlserver&logoColor=white)](#tech-stack)
-[![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?logo=docker&logoColor=white)](#despliegue-con-docker)
+[![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
+[![Spring Boot 4.1.1](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Vite 6](https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![SQL Server](https://img.shields.io/badge/SQL_Server-Enterprise%20%2F%20Express-CC2927?style=for-the-badge&logo=microsoftsqlserver&logoColor=white)](https://www.microsoft.com/sql-server)
+[![Docker](https://img.shields.io/badge/Docker-Multi--stage-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-gray?style=for-the-badge)](pom.xml)
+
+<br/>
+
+> 💡 **¿Qué es PushDbTemplate?**  
+> Una solución web full-stack de **solo lectura y auditoría segura** que transforma cualquier base de datos SQL Server en un **Excel interactivo y colaborativo**. Permite inspeccionar tablas, definir relaciones virtuales, cruzar múltiples entidades visualmente y generar exportaciones a Excel (`.xlsx`) y CSV de alto volumen sin riesgos de modificación de datos ni necesidad de otorgar accesos directos a SSMS o DBeaver.
+
+---
 
 </div>
 
----
+## 🎮 Elige tu Modo de Exploración
 
-## Resumen ejecutivo
+<details open>
+<summary><b>💼 Soy Usuario de Negocio / Analista de Datos</b> <i>(Haz clic para desplegar)</i></summary>
+<br>
 
-**PushDbTemplate** es una aplicación web full-stack que expone, de forma **segura y de solo lectura**, el contenido de una base de datos SQL Server a través de una interfaz similar a Excel. Está pensada para equipos técnicos y de soporte (consultores, DBAs, analistas) que necesitan **inspeccionar datos de producción sin acceso directo al motor** ni herramientas de administración de base de datos.
+* 📄 **Navegación tipo Excel:** Cambia entre tablas usando las pestañas inferiores de hoja (`SheetTabs`).
+* 🔍 **Filtros Dinámicos:** Aplica filtros instantáneos por columna (`CONTAINS`, `EQUALS`, `GREATER_THAN`, `BETWEEN`, `IS_NULL`, etc.).
+* 🔗 **Nombres Claros (FK):** Olvídate de ver `id_cliente = 4528`. El sistema traduce automáticamente los IDs a nombres legibles como `"Acme Corp S.A."`.
+* 🧩 **Cruzar Tablas sin Saber SQL:** Usa el **Constructor de Reportes** para unir clientes, ventas y productos con sugerencias inteligentes en 1 clic.
+* 📥 **Exportar a Excel:** Descarga tus datos limpios y listos para trabajar con streaming optimizado.
+* 🟢 **Modo Fácil:** Activa el botón de interfaz simplificada en el Ribbon superior para ocultar tecnicismos de base de datos.
 
-El sistema resuelve automáticamente las relaciones entre tablas (Foreign Keys), permite definir relaciones virtuales cuando el modelo físico no las declara, y genera reportes `.xlsx`/`.csv` listos para distribuir — todo detrás de autenticación, con controles anti-inyección SQL y anti-exfiltración masiva.
+</details>
 
-**Valor de negocio:**
+<details>
+<summary><b>💻 Soy Desarrollador Full-Stack</b> <i>(Haz clic para desplegar)</i></summary>
+<br>
 
-| Necesidad | Cómo la resuelve PushDbTemplate |
-|---|---|
-| Consultar datos sin dar acceso a SSMS/DBeaver | Interfaz web de solo lectura, sin superficie de escritura sobre las tablas de negocio |
-| Entender relaciones sin conocer el modelo físico | Resolución automática de FKs + FKs virtuales configurables desde la UI |
-| Entregar reportes a usuarios de negocio | Exportación `.xlsx` en streaming y `.csv` instantáneo |
-| Auditar el estado del motor de base de datos | Consola de diagnóstico con métricas de tamaño, conexiones, colación, etc. |
-| Cumplir controles de seguridad mínimos | Autenticación obligatoria, whitelisting de identificadores, CSP, límites anti-abuso |
+* 🚀 **Stack Moderno:** Java 21 + Spring Boot 4.1.1 en backend, React 19 + Vite 6 en frontend.
+* 🏛️ **Arquitectura Limpia y Modular:** Lógica desacoplada en 5 servicios especializados (`SchemaMetadataService`, `ForeignKeyService`, `CustomReportService`, `ExcelExportService`, `DatabaseDiagnosticsService`).
+* 🛡️ **Seguridad Nativa:** Whitelisting estricto contra el catálogo de metadatos, identificadores escapados con `[ ]` (T-SQL) y protección contra Formula Injection.
+* ⚡ **Caché Caffeine:** Caché en memoria para metadatos de esquema sincronizada con cabeceras HTTP `Cache-Control`.
+* 🧪 **Suite de Tests:** Pruebas unitarias e integradas con Spring MockMvc y JUnit 5 (`./mvnw test`).
 
----
+</details>
 
-## Índice
+<details>
+<summary><b>🛡️ Soy DBA / Administrador de Infraestructura</b> <i>(Haz clic para desplegar)</i></summary>
+<br>
 
-- [Características](#características)
-- [Tech stack](#tech-stack)
-- [Arquitectura](#arquitectura)
-- [Requisitos previos](#requisitos-previos)
-- [Configuración](#configuración)
-- [Guía de uso](#guía-de-uso)
-  - [Desarrollo local](#1-desarrollo-local)
-  - [Build de producción](#2-build-de-producción-artefacto-único)
-  - [Despliegue con Docker](#3-despliegue-con-docker)
-- [Manual de la interfaz](#manual-de-la-interfaz)
-- [Referencia de la API](#referencia-de-la-api)
-- [Modelo de relaciones (Foreign Keys)](#modelo-de-relaciones-foreign-keys)
-- [Seguridad](#seguridad)
-- [Rendimiento y caché](#rendimiento-y-caché)
-- [Observabilidad](#observabilidad)
-- [Testing y calidad](#testing-y-calidad)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Limitaciones conocidas](#limitaciones-conocidas)
-- [Licencia](#licencia)
+* 🔒 **Superficie de Ataque Cero:** Sin operaciones de escritura (`DML/DDL`) sobre los datos del negocio. Conexión de solo lectura.
+* 🎛️ **Consola DBA Embebida:** Visualiza en tiempo real versión del motor, tamaño de archivos de datos y logs, modelo de recuperación, colación y conexiones activas.
+* 🚦 **Control de Recursos y Concurrencia:** Límite configurable de filas exportables (`EXPORT_MAX_ROWS`) y semáforo de descargas concurrentes (`EXPORT_MAX_CONCURRENT`) para proteger el pool de HikariCP.
+* 📦 **Contenedorización Segura:** Dockerfile multi-stage con runtime JRE 21 ejecutando como usuario no privilegiado (`appuser`).
+* 🩺 **Observabilidad:** Integración completa con Spring Boot Actuator (`/actuator/health` y `/actuator/metrics`).
+
+</details>
 
 ---
 
-## Características
+## 📑 Tabla de Contenidos
 
-**Exploración de datos**
-- Navegación paginada server-side (`OFFSET`/`FETCH NEXT`) de todas las tablas del esquema conectado.
-- Selección dinámica de columnas visibles y proyección `SELECT` acotada (sin `SELECT *` innecesario).
-- Descubrimiento automático de tablas vía `DatabaseMetaData`, excluyendo vistas y esquemas de sistema.
-
-**Relaciones (Foreign Keys)**
-- Detección automática de FKs reales del motor (`getImportedKeys()`).
-- Resolución en **lote** (una consulta por columna FK, no por fila) del valor legible referenciado — sin problema N+1.
-- FKs **virtuales/personalizadas**: define relaciones inexistentes a nivel de motor, con columna de visualización y filtro adicional, persistidas en base de datos (no en archivos locales).
-
-**Reportes Personalizados Multi-Tabla (Cruces / Joins)**
-- Constructor interactivo de consultas multi-tabla con soporte para `LEFT JOIN`, `INNER JOIN`, `RIGHT JOIN` y `FULL JOIN`.
-- Detección inteligente de cruces basados en relaciones de Claves Foráneas físicas y virtuales existentes.
-- Selección, proyección y renombrado de columnas (etiquetas/aliases personalizados) por cada tabla involucrada.
-- Motor de filtrado avanzado con múltiples condiciones lógicas (`AND`/`OR`), operadores relacionales (`LIKE`, `=`, `>`, `<`, `BETWEEN`, `IN`, `IS NULL`) y ordenamiento multi-columna.
-- Vista previa paginada en tiempo real con visor de consulta SQL auditable.
-- Exportación directa a Excel (`.xlsx`) en streaming y CSV.
-- Persistencia de plantillas de reportes en la tabla `dbo.push_custom_reports` en SQL Server.
-
-**Exportación de reportes**
-- `.xlsx` en streaming (Apache POI `SXSSFWorkbook`) con los valores de FK ya resueltos, límite de filas configurable y control de concurrencia.
-- `.csv` instantáneo del lado del cliente, sobre la página actualmente cargada.
-- Sanitización anti *Formula/CSV Injection* en ambos exportadores.
-
-**Observabilidad y diagnóstico**
-- Consola DBA embebida: motor, versión, tamaño en disco, colación, modelo de recuperación, conexiones activas, FKs virtuales configuradas.
-- Endpoints de `Actuator` (`/health`, `/metrics`) para monitoreo externo.
-
-**Seguridad by design**
-- Autenticación HTTP Basic obligatoria (sin credenciales, la app no arranca).
-- Whitelisting estricto de tablas/columnas contra la metadata real del motor antes de construir cualquier SQL.
-- `Content-Security-Policy` restrictiva y API *stateless* (sin superficie CSRF).
-
-**Rendimiento**
-- Caché en memoria (Caffeine) para metadatos poco cambiantes.
-- Pool de conexiones HikariCP afinado para SQL Server (prepared statements cacheados, `sendStringParametersAsUnicode` desactivado).
-- Compresión HTTP de respuestas JSON/HTML/CSS/JS.
+1. [✨ Superpoderes y Características](#-superpoderes-y-características)
+2. [🕹️ Vista Guiada de la Interfaz](#️-vista-guiada-de-la-interfaz)
+3. [🏛️ Arquitectura del Sistema](#️-arquitectura-del-sistema)
+4. [🛠️ Tech Stack](#️-tech-stack)
+5. [🚀 Guía de Inicio Rápido](#-guía-de-inicio-rápido)
+   - [Variables de Entorno (.env)](#variables-de-entorno-env)
+   - [Desarrollo Local](#desarrollo-local)
+   - [Compilación y Artefacto Único](#compilación-y-artefacto-único)
+   - [Despliegue con Docker](#despliegue-con-docker)
+6. [🧩 Constructor de Reportes Multi-Tabla (Custom Reports)](#-constructor-de-reportes-multi-tabla-custom-reports)
+7. [🔗 Resolución y Gestión de Claves Foráneas (FK)](#-resolución-y-gestión-de-claves-foráneas-fk)
+8. [🔌 Referencia Completa de la API REST](#-referencia-completa-de-la-api-rest)
+9. [🛡️ Matriz de Seguridad y Rendimiento](#️-matriz-de-seguridad-y-rendimiento)
+10. [🧪 Testing y Aseguramiento de Calidad](#-testing-y-aseguramiento-de-calidad)
+11. [📂 Estructura del Código Fuente](#-estructura-del-código-fuente)
+12. [❓ Preguntas Frecuentes y Solución de Problemas](#-preguntas-frecuentes-y-solución-de-problemas)
 
 ---
 
-## Tech stack
+## ✨ Superpoderes y Características
 
-| Capa | Tecnología |
-|---|---|
-| Backend | Java 21 · Spring Boot 4.1.1 (Web, Security, JDBC, Cache, Actuator) |
-| Acceso a datos | `JdbcTemplate` + driver `mssql-jdbc` · HikariCP |
-| Caché | Caffeine (`spring-boot-starter-cache`) |
-| Reportes | Apache POI 5.3.0 (SXSSF streaming) |
-| Frontend | React 19 · Vite 6 · `lucide-react` (iconografía) |
-| Autenticación | Spring Security — HTTP Basic + `InMemoryUserDetailsManager` (BCrypt) |
-| Contenedores | Docker multi-stage (Node 22 → Eclipse Temurin 21 JDK → Eclipse Temurin 21 JRE) |
-| Persistencia de configuración | Tabla `dbo.push_custom_fks` en la propia base de datos destino |
-
----
-
-## Arquitectura
-
-```mermaid
-flowchart LR
-    subgraph Cliente["Navegador"]
-        UI["React SPA<br/>(Ribbon · Spreadsheet · SheetTabs · StatusBar)"]
-    end
-
-    subgraph Servidor["PushDbTemplate (Spring Boot)"]
-        SEC["SecurityConfig<br/>HTTP Basic + CSP"]
-        CTRL["DatabaseController<br/>/api/db/**"]
-        SVC["DatabaseService<br/>whitelisting · resolución FK · export"]
-        CACHE["Caffeine Cache<br/>tables · columns · foreignKeys · tableCount"]
-        POOL["HikariCP"]
-    end
-
-    DB[("SQL Server")]
-
-    UI -->|"HTTPS + Basic Auth<br/>JSON / .xlsx"| SEC --> CTRL --> SVC
-    SVC <--> CACHE
-    SVC --> POOL --> DB
+```
+ 📊 SPREADSHEET VIEW              🧩 CUSTOM REPORT BUILDER           🛡️ DBA COCKPIT
+┌─────────────────────────┐      ┌─────────────────────────┐       ┌─────────────────────────┐
+│ • Paginación fluida     │      │ • Joins visuales        │       │ • Telemetría SQL Server │
+│ • Formato inteligente   │  ➕  │ • Sugerencias FK 1-clic │   ➕   │ • Tamaño en disco       │
+│ • FKs Virtuales en celda│      │ • Filtros y orden multin│       │ • Conexiones activas    │
+│ • Export Excel/CSV      │      │ • Plantillas en BD      │       │ • Consola de diagnóstico│
+└─────────────────────────┘      └─────────────────────────┘       └─────────────────────────┘
 ```
 
-- **Desarrollo**: el frontend corre en Vite (`:5173`) y hace *proxy* de `/api` hacia el backend (`:8080`) — ver [`frontend/vite.config.js`](frontend/vite.config.js).
-- **Producción**: el build de Vite se copia dentro de `src/main/resources/static/`; Spring Boot sirve todo desde un único origen y puerto (sin CORS). [`IndexRedirectFilter`](src/main/java/com/LectorDBTemplate/PushDbTemplate/config/IndexRedirectFilter.java) evita que `/index.html` quede accesible como URL directa, normalizando siempre a `/`.
-- **Estado compartido**: las FKs personalizadas viven en la tabla `dbo.push_custom_fks` de la propia base de datos destino, no en disco local — por lo que la aplicación es *stateless* a nivel de instancia y escala horizontalmente sin sesión pegajosa.
+### 1. 📊 Explorador de Tablas Estilo Hoja de Cálculo
+* **Navegación Paginada Eficiente:** Paginación server-side con `OFFSET / FETCH NEXT` (límite configurable de 10 a 100 registros por página).
+* **Renderizado Inteligente de Tipos:** Alineación numérica automática a la derecha con estilos visuales, fechas centradas, booleanos formateados y valores `NULL` estilizados en cursiva suave.
+* **Filtros Dinámicos Integrados:** Filtra cualquier columna al instante con operadores avanzados (`Contiene`, `Es Igual`, `Mayor que`, `Menor que`, `Entre`, `Es Nulo`, etc.).
+* **Selector Dinámico de Proyecciones:** Elige exactamente qué columnas deseas visualizar o exportar para minimizar el tráfico de red.
+
+### 2. 🔗 Relaciones Inteligentes (Foreign Keys Nativas y Virtuales)
+* **Detección Automática:** Inspección del catálogo del motor vía `DatabaseMetaData.getImportedKeys()`.
+* **FKs Virtuales / Personalizadas:** ¿Tu base de datos carece de constraints formales por diseño legado? Declara relaciones virtuales directamente haciendo doble clic en el encabezado de la columna.
+* **Persistencia Robusta en BD:** Las relaciones personalizadas se guardan en la tabla `dbo.push_custom_fks` dentro del propio SQL Server, garantizando que todos los usuarios compartan la misma configuración sin depender de archivos locales.
+* **Resolución en Lote (Zero N+1):** Una única consulta optimizada `WHERE pk IN (...)` por cada columna FK visible, calculada únicamente sobre los valores únicos de la página en pantalla.
+* **3 Modos de Visualización:**
+  * `ID`: Muestra el código numérico original (ej. `104`).
+  * `Valor Real`: Muestra únicamente la descripción referenciada (ej. `Logística Central`).
+  * `Ambos`: Muestra formato compuesto (ej. `104 - Logística Central`).
+
+### 3. 🧩 Constructor Visual de Reportes Multi-Tabla (Joins)
+* **Cruces Visuales Intuitivos:** Soporte completo para `LEFT JOIN`, `INNER JOIN`, `RIGHT JOIN` y `FULL JOIN`.
+* **Sugerencias Inteligentes de Cruces:** El sistema analiza las FKs físicas y virtuales existentes y te ofrece un botón para agregar cruces automáticos en un solo clic.
+* **Renombrado y Selección de Columnas:** Combina campos de múltiples tablas y asígnales nombres descriptivos (*aliases*) para el reporte final.
+* **Filtros Multinivel y Ordenamiento:** Combina condiciones lógicas (`AND`/`OR`) con operadores relacionales y orden multi-columna (`ASC`/`DESC`).
+* **Visor SQL en Vivo:** Observa y audita la consulta T-SQL generada en tiempo real antes de ejecutarla.
+* **Sistema de Plantillas Persistidas:** Guarda reportes frecuentes con nombre y descripción en la tabla `dbo.push_custom_reports` para reejecutarlos cuando quieras.
+
+### 4. 📥 Motor de Exportación de Alto Rendimiento
+* **Streaming Apache POI SXSSF:** Generación de archivos Excel (`.xlsx`) mediante ventana deslizante en memoria y volcado a disco temporal, evitando saturación de memoria RAM (`OutOfMemoryError`).
+* **Exportación CSV Instantánea:** Generación ultrarrápida del lado del cliente para la vista actual.
+* **Blindaje Anti-Inyección de Fórmulas:** Neutralización automática de caracteres maliciosos (`=`, `+`, `-`, `@`, `\t`, `\r`) para proteger a los usuarios de Microsoft Excel.
+
+### 5. 🌓 Experiencia Dual y Diagnóstico DBA
+* **Modo Fácil vs Modo DBA:** Switch accesible en la barra superior para alternar entre terminología amigable y métricas técnicas.
+* **Consola de Diagnóstico:** Consulta estado del servidor, base de datos, colación, conexiones y espacio ocupado por cada archivo de datos (`.mdf`) y log (`.ldf`).
+* **Guía Interactiva Integrada:** Manual de usuario disponible desde el propio Ribbon con atajos de teclado y consejos de uso.
 
 ---
 
-## Requisitos previos
+## 🕹️ Vista Guiada de la Interfaz
 
-| Herramienta | Versión | Necesaria para |
-|---|---|---|
-| JDK | 21 | Compilar/ejecutar el backend |
-| Node.js / npm | 22+ | Compilar/desarrollar el frontend |
-| SQL Server | Cualquier versión soportada por `mssql-jdbc` | Origen de datos |
-| Docker | Reciente | Despliegue en contenedor (opcional) |
-
-Se requiere además un **usuario de base de datos con permisos de lectura** sobre las tablas a explorar (y `CREATE TABLE` sobre `dbo` la primera vez, para que la aplicación pueda crear `dbo.push_custom_fks`).
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│ 🟢 SQL Server Workbook   [Hojas de Datos] [Cruzar y Armar]   [🟢 Modo Fácil | 🛠️ Modo DBA] [?] │  <- Ribbon Superior
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Pestaña Inicio: [Filas: 15 ▼]  [◀ Pág 1 de 24 ▶]  [Ver FK: Ambos ▼]  [🔍 Filtro Rápido]   │  <- Barra de Herramientas
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│ fx | Tabla activa: dbo.Ventas (1,450 registros)                                            │  <- Barra de Fórmulas
+├────┬──────────────┬────────────────────────┬───────────────────────────┬────────────────────┤
+│ #  │ id_venta     │ id_cliente (FK) 🔗     │ id_producto (FK) 🔗       │ monto_total        │  <- Encabezados
+├────┼──────────────┼────────────────────────┼───────────────────────────┼────────────────────┤
+│ 1  │ 1001         │ 12 - Acme Sur S.A.     │ 501 - Licencia Enterprise │ $ 1,250.00         │  <- Grilla de Datos
+│ 2  │ 1002         │ 15 - Banco Global      │ 504 - Soporte Gold 24/7   │ $ 4,800.00         │     (Excel Theme)
+│ 3  │ 1003         │ 12 - Acme Sur S.A.     │ 502 - Módulo Adicional    │ $   350.00         │
+└────┴──────────────┴────────────────────────┴───────────────────────────┴────────────────────┘
+│ 📄 Clientes │ 📄 Ventas ★ │ 📄 Productos │ 📄 Proveedores │ 📄 Sucursales │ ◀ ▶ [Buscar Hoja] │  <- SheetTabs
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+│ Total: 1,450 filas | Mostrando 1-15 | Tiempo respuesta: 18ms | Conexión: ONLINE 🟢          │  <- StatusBar
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Configuración
+## 🏛️ Arquitectura del Sistema
 
-Toda la configuración sensible se maneja por variables de entorno, cargadas desde un archivo `.env` en la raíz (`spring.config.import` en [`application.yaml`](src/main/resources/application.yaml)).
+El sistema implementa una **Arquitectura en Capas Limpia (Clean Architecture)** orientada a la seguridad de solo lectura:
+
+```mermaid
+flowchart TD
+    subgraph Frontend["🖥️ FRONTEND (React 19 + Vite 6)"]
+        UI["Ribbon · Spreadsheet · SheetTabs · StatusBar"]
+        CR["CustomReports (Visual Join Builder & Templates)"]
+        MODALS["DbaConsoleModal · UserGuideModal"]
+    end
+
+    subgraph Security["🛡️ SEGURIDAD PERIMETRAL"]
+        SEC["Spring Security (HTTP Basic Auth obligatoria)"]
+        CSP["Content-Security-Policy & Headers Seguros"]
+        REDIRECT["IndexRedirectFilter (/index.html -> /)"]
+    end
+
+    subgraph ControllerLayer["🎮 CONTROLLER REST"]
+        CTRL["DatabaseController (/api/db/**)"]
+    end
+
+    subgraph ServiceLayer["⚙️ SERVICIOS MODULARES ESPECIALIZADOS"]
+        SMS["SchemaMetadataService<br/><i>(Catálogo, conteo y paginación)</i>"]
+        FKS["ForeignKeyService<br/><i>(Detección, resolución FK y Joins)</i>"]
+        CRS["CustomReportService<br/><i>(Motor T-SQL multi-tabla y plantillas)</i>"]
+        EES["ExcelExportService<br/><i>(Streaming SXSSF & Semáforo Concurrencia)</i>"]
+        DDS["DatabaseDiagnosticsService<br/><i>(Telemetría y Métricas DBA)</i>"]
+        SAFE["SqlSafe<br/><i>(Validación & Escape T-SQL Whitelist)</i>"]
+    end
+
+    subgraph CacheAndPool["⚡ CACHÉ & CONEXIONES"]
+        CAFFEINE[("Caffeine Cache<br/>TTL: 60s")]
+        HIKARI[("HikariCP Connection Pool")]
+    end
+
+    subgraph Database["🗄️ SQL SERVER"]
+        SYS_TABLES[("Tablas de Negocio (Solo Lectura)")]
+        CFK_TABLE[("dbo.push_custom_fks (FKs Virtuales)")]
+        CREP_TABLE[("dbo.push_custom_reports (Plantillas)")]
+    end
+
+    Frontend -->|"Peticiones HTTP/JSON + Auth"| SEC
+    SEC --> REDIRECT --> CSP --> CTRL
+    
+    CTRL --> SMS & FKS & CRS & EES & DDS
+    SMS & FKS & CRS & EES & DDS --> SAFE
+    SMS & FKS <--> CAFFEINE
+    SMS & FKS & CRS & EES & DDS --> HIKARI
+    
+    HIKARI --> SYS_TABLES
+    HIKARI --> CFK_TABLE
+    HIKARI --> CREP_TABLE
+```
+
+---
+
+## 🛠️ Tech Stack
+
+| Área | Componente | Versión / Detalle | Propósito |
+|---|---|---|---|
+| **Backend** | Java | `OpenJDK 21 (LTS)` | Runtime de alto rendimiento |
+| | Spring Boot | `4.1.1` | Web MVC, Security, JDBC, Cache, Actuator |
+| | Persistencia | `JdbcTemplate` + `mssql-jdbc` | Consultas dinámicas optimizadas sin sobrecarga ORM |
+| | Pool de Conexiones | `HikariCP` | Pool de baja latencia con Prepared Statements cacheados |
+| | Motor de Caché | `Caffeine` | Caché en memoria para metadatos poco cambiantes |
+| | Exportador Excel | `Apache POI 5.3.0` | `SXSSFWorkbook` (Streaming con ventana de memoria) |
+| **Frontend** | React | `19.x` | SPA declarativo con Hooks modernos |
+| | Bundler / DevServer| `Vite 6.x` | Compilación y recarga ultra rápida (HMR) |
+| | Iconografía | `lucide-react` | Conjunto completo de íconos vectoriales modernos |
+| | Estilos | `Vanilla CSS Modular` | Tema inspirado fielmente en Microsoft Excel |
+| **Infraestructura**| Docker | Multi-Stage | Node 22 Build ➔ JDK 21 Build ➔ JRE 21 Slim Runtime |
+| | Base de Datos | `Microsoft SQL Server` | 2014, 2016, 2017, 2019, 2022 y Azure SQL |
+
+---
+
+## 🚀 Guía de Inicio Rápido
+
+### Variables de Entorno (.env)
+
+Crea tu archivo `.env` en la raíz del proyecto clonando el archivo de ejemplo:
 
 ```bash
 cp .env.example .env
 ```
 
-| Variable | Obligatoria | Default | Descripción |
-|---|---|---|---|
-| `DB_URL` | No | `jdbc:sqlserver://localhost:1433;databaseName=CL3530BD01MAP;...` | Cadena JDBC de SQL Server |
-| `DB_USERNAME` | **Sí** | — | Usuario de base de datos |
-| `DB_PASSWORD` | **Sí** | — | Contraseña de base de datos |
-| `DB_POOL_MAX_SIZE` | No | `10` | Tamaño máximo del pool HikariCP |
-| `DB_POOL_MIN_IDLE` | No | `2` | Conexiones mínimas en espera |
-| `APP_USER` | **Sí, sin fallback** | — | Usuario para autenticarse contra `/api/**` |
-| `APP_PASSWORD` | **Sí, sin fallback** | — | Contraseña de `APP_USER` |
-| `EXPORT_MAX_ROWS` | No | `50000` | Filas máximas exportables en un reporte `.xlsx` |
-| `EXPORT_MAX_CONCURRENT` | No | `2` | Exportaciones `.xlsx` simultáneas permitidas |
+Configura tus variables según el entorno:
 
-> ⚠️ Si `APP_USER` o `APP_PASSWORD` no están definidos, la aplicación **no arranca** — es una decisión de diseño: nunca exponer la API sin protección en vez de degradar silenciosamente.
+```ini
+# ==============================================================================
+# CONEXIÓN A BASE DE DATOS SQL SERVER
+# ==============================================================================
+DB_URL=jdbc:sqlserver://localhost:1433;databaseName=MiBaseDatos;encrypt=false;trustServerCertificate=true
+DB_USERNAME=sa
+DB_PASSWORD=TuPasswordSeguro123!
+DB_POOL_MAX_SIZE=10
+DB_POOL_MIN_IDLE=2
+
+# ==============================================================================
+# SEGURIDAD Y AUTENTICACIÓN WEB (OBLIGATORIO: Sin esto la app no arranca)
+# ==============================================================================
+APP_USER=admin
+APP_PASSWORD=PasswordSuperSeguro2026!
+
+# ==============================================================================
+# POLÍTICAS DE EXPORTACIÓN Y RENDIMIENTO
+# ==============================================================================
+EXPORT_MAX_ROWS=50000
+EXPORT_MAX_CONCURRENT=2
+```
+
+> [!IMPORTANT]
+> **Arranque Seguro:** Si `APP_USER` o `APP_PASSWORD` se encuentran vacíos o no declarados, la aplicación **fallará intencionalmente al iniciar** para evitar exponer la información sin autenticación.
 
 ---
 
-## Guía de uso
+### Desarrollo Local
 
-### 1. Desarrollo local
+Para desarrollo activo con hot-reload en frontend y backend:
 
-Backend y frontend corren como dos procesos independientes.
+<details open>
+<summary><b>Paso 1: Iniciar Backend (Spring Boot en puerto 8080)</b></summary>
 
 ```bash
-# Terminal 1 — backend (puerto 8080)
+# En la raíz del proyecto
 ./mvnw spring-boot:run
 ```
 
+</details>
+
+<details open>
+<summary><b>Paso 2: Iniciar Frontend (Vite en puerto 5173 con proxy)</b></summary>
+
 ```bash
-# Terminal 2 — frontend (puerto 5173, con hot-reload y proxy hacia :8080)
 cd frontend
 npm install
 npm run dev
 ```
 
-Abre `http://localhost:5173`. El navegador solicitará las credenciales HTTP Basic (`APP_USER` / `APP_PASSWORD` de tu `.env`).
+</details>
 
-Scripts adicionales del frontend:
+Abre tu navegador en **`http://localhost:5173`** e ingresa las credenciales de `APP_USER` y `APP_PASSWORD`.
 
-```bash
-npm run lint      # Lint con oxlint
-npm run build     # Build de producción → frontend/dist
-npm run preview   # Sirve localmente el build de producción
-```
+---
 
-### 2. Build de producción (artefacto único)
+### Compilación y Artefacto Único
+
+Puedes empaquetar todo el frontend compilado dentro del `.jar` de Spring Boot para ejecutarlo en un solo puerto (`:8080`):
 
 ```bash
+# 1. Compilar el frontend
 cd frontend
 npm ci
 npm run build
 cd ..
+
+# 2. Copiar los estáticos a los recursos de Spring
+mkdir -p src/main/resources/static
 cp -r frontend/dist/* src/main/resources/static/
 
+# 3. Empaquetar el JAR ejecutable
 ./mvnw clean package -DskipTests
+
+# 4. Ejecutar el servidor standalone
 java -jar target/PushDbTemplate-0.0.1-SNAPSHOT.jar
 ```
 
-La aplicación queda disponible en un único origen y puerto: `http://localhost:8080`.
+Accede directamente a **`http://localhost:8080`**.
 
-### 3. Despliegue con Docker
+---
 
-El [`Dockerfile`](Dockerfile) automatiza el flujo anterior en una imagen multi-stage: build del frontend (Node 22) → build del backend con el frontend embebido (JDK 21) → runtime liviano (JRE 21) ejecutando como usuario sin privilegios.
+### Despliegue con Docker
+
+El proyecto incluye un [`Dockerfile`](Dockerfile) multi-stage optimizado que no requiere tener Java ni Node instalados en el host:
 
 ```bash
-docker build -t pushdbtemplate .
+# 1. Construir la imagen Docker
+docker build -t pushdbtemplate:latest .
 
+# 2. Ejecutar el contenedor pasando el archivo de variables de entorno
 docker run -d \
-  --name pushdbtemplate \
+  --name pushdbtemplate_app \
   -p 8080:8080 \
   --env-file .env \
   --restart unless-stopped \
-  pushdbtemplate
+  pushdbtemplate:latest
 ```
 
-**Notas para orquestación (Kubernetes / Docker Swarm / balanceadores):**
-
-- *Readiness* y *liveness probe*: `GET /actuator/health` (no requiere autenticación).
-- La app es *stateless* entre instancias — se puede escalar horizontalmente con múltiples réplicas sin afinidad de sesión.
-- Ajusta `DB_POOL_MAX_SIZE` según el número de réplicas para no exceder el límite de conexiones del motor SQL Server.
-
----
-
-## Manual de la interfaz
-
-La interfaz emula el flujo de trabajo de una hoja de cálculo:
-
-| Componente | Función |
-|---|---|
-| **Pestañas inferiores** (`SheetTabs`) | Una pestaña por tabla física del esquema (se excluyen vistas y esquemas de sistema). Clic para cargarla. |
-| **Cinta de opciones** (`Ribbon`) | Selector de columnas visibles · filas por página y navegación · refrescar · exportar CSV/Excel · modo de visualización de FK (`id` / `real` / `ambos`) · abrir Consola DBA. |
-| **Grilla principal** (`Spreadsheet`) | Datos paginados. Las columnas FK permiten crear, editar, habilitar/deshabilitar o eliminar una relación personalizada directamente desde la celda/encabezado. |
-| **Barra de estado** (`StatusBar`) | Total de filas, rango mostrado y tiempo de respuesta de la última consulta. |
-| **Consola DBA** (modal) | Motor y versión, driver JDBC, cadena de conexión (credenciales enmascaradas), estado/colación/modelo de recuperación de la BD, conexiones activas, tamaño en disco por archivo, FKs virtuales activas. |
+Verifica la salud del contenedor:
+```bash
+curl -i http://localhost:8080/actuator/health
+```
 
 ---
 
-## Referencia de la API
+## 🧩 Constructor de Reportes Multi-Tabla (Custom Reports)
 
-Todos los endpoints bajo `/api/db` requieren **HTTP Basic Auth**. `/actuator/health` es público.
+El generador de reportes permite realizar cruces avanzados entre tablas sin escribir una sola línea de SQL:
 
-### `GET /api/db/info`
-Metadatos y estadísticas del motor conectado.
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. SELECCIONAR TABLA BASE ➔ 2. AGREGAR CRUCES (JOINS) ➔ 3. FILTROS & ORDEN  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Tabla Principal: [dbo.Facturas ▼]                                           │
+│ Cruces Activos:                                                             │
+│  ├─ [LEFT JOIN] dbo.Clientes ON Facturas.id_cliente = Clientes.id_cliente    │
+│  └─ [LEFT JOIN] dbo.Vendedores ON Facturas.id_vendedor = Vendedores.id_vend │
+│                                                                             │
+│ 💡 Sugerencias detectadas:                                                  │
+│  [➕ Unir con dbo.DetalleFacturas (vía id_factura)]                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Columnas del Reporte:                                                       │
+│  ☑ Facturas.folio AS [Folio Factura]                                        │
+│  ☑ Clientes.razon_social AS [Nombre Cliente]                                │
+│  ☑ Vendedores.nombre AS [Ejecutivo Asignado]                                │
+│  ☑ Facturas.total AS [Monto Neto]                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ [▶ Ejecutar Vista Previa]  [📥 Descargar Excel (.xlsx)]  [💾 Guardar Plantilla] │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
+### Características Principales:
+1. **Tipos de Cruces Soportados:** `LEFT JOIN` (por defecto, preserva datos principales), `INNER JOIN` (coincidencias estrictas), `RIGHT JOIN` y `FULL JOIN`.
+2. **Sugerencias Basadas en FKs:** Detección en tiempo real de relaciones existentes que conectan con la tabla base seleccionada.
+3. **Selector y Aliases de Columnas:** Selección precisa de campos evitando colisiones de nombres (`id_cliente` de tabla A vs `id_cliente` de tabla B).
+4. **Filtros Multi-Criterio:** Condiciones con operadores `>`, `<`, `=`, `LIKE`, `BETWEEN`, `IN`, `IS NULL`, etc.
+5. **Auditoría SQL en Vivo:** Código T-SQL generado listo para inspección visual.
+6. **Plantillas en Base de Datos:** Guardado centralizado en `dbo.push_custom_reports`.
+
+---
+
+## 🔗 Resolución y Gestión de Claves Foráneas (FK)
+
+### 1. ¿Cómo funciona la resolución?
+Cuando visualizas una tabla con una FK referenciada (por ejemplo `id_categoria = 3`), el backend no ejecuta consultas fila por fila (evitando el problema de rendimiento N+1). En su lugar:
+1. Extrae los valores únicos de la columna presentes en la página actual (ej. `[1, 3, 7]`).
+2. Ejecuta una sola consulta: `SELECT id_categoria, nombre_categoria FROM dbo.Categorias WHERE id_categoria IN (1, 3, 7)`.
+3. Devuelve un mapa de resolución que el frontend asocia en tiempo récord.
+
+### 2. Creación de FKs Virtuales desde la Interfaz:
+1. Haz **doble clic en el encabezado** de cualquier columna numérica o identificador.
+2. Selecciona la tabla de destino (`referencedTable`) y su clave primaria (`referencedColumn`).
+3. Elige qué columna descriptiva deseas mostrar (`displayColumn`, ej. `razon_social`).
+4. (Opcional) Aplica un filtro adicional a la relación.
+5. Haz clic en **"Guardar Relación"**. La configuración se persistirá automáticamente en `dbo.push_custom_fks`.
+
+---
+
+## 🔌 Referencia Completa de la API REST
+
+Todos los endpoints bajo `/api/db/**` requieren cabecera de autenticación **HTTP Basic Auth** (`Authorization: Basic base64(user:pass)`).
+
+<details>
+<summary><b>1. Diagnóstico y Metadatos de Servidor</b> <code>GET /api/db/info</code></summary>
+
+```http
+GET /api/db/info HTTP/1.1
+Authorization: Basic YWRtaW46UGFzc3dvcmQ=
+```
+
+**Respuesta Exitosa (200 OK):**
 ```json
 {
   "databaseProduct": "Microsoft SQL Server",
-  "databaseVersion": "15.00.4236",
-  "jdbcUrl": "jdbc:sqlserver://localhost:1433;databaseName=***;user=******;password=******",
-  "totalTables": 128,
-  "totalViews": 14,
-  "activeConnections": 6,
+  "databaseVersion": "15.00.4236.7",
+  "jdbcUrl": "jdbc:sqlserver://localhost:1433;databaseName=PROD;user=***;password=***",
+  "totalTables": 84,
+  "totalViews": 12,
+  "activeConnections": 8,
   "dbState": "ONLINE",
   "dbRecoveryModel": "SIMPLE",
   "dbCollation": "SQL_Latin1_General_CP1_CI_AS",
-  "totalSizeMb": 4096,
-  "dbFiles": [{ "name": "MiBD", "type": "ROWS", "sizeMb": 3072 }],
-  "customFksCount": 7
+  "totalSizeMb": 2048,
+  "dbFiles": [
+    { "name": "PROD_Data", "type": "ROWS", "sizeMb": 1536 },
+    { "name": "PROD_Log", "type": "LOG", "sizeMb": 512 }
+  ],
+  "customFksCount": 5
 }
 ```
+</details>
 
-### `GET /api/db/tables`
-Lista de tablas legibles.
+<details>
+<summary><b>2. Listado de Tablas</b> <code>GET /api/db/tables</code></summary>
 
-```json
-[{ "schema": "dbo", "name": "Empresas" }, { "schema": "dbo", "name": "Proceso" }]
+```http
+GET /api/db/tables HTTP/1.1
 ```
 
-### `GET /api/db/tables/{schema}/{name}/columns`
-Esquema de columnas de una tabla.
-
+**Respuesta (200 OK):**
 ```json
-[{ "name": "id_empresa", "type": "int", "size": 10, "nullable": false }]
+[
+  { "schema": "dbo", "name": "Clientes" },
+  { "schema": "dbo", "name": "Facturas" },
+  { "schema": "dbo", "name": "Productos" }
+]
+```
+</details>
+
+<details>
+<summary><b>3. Esquema de Columnas</b> <code>GET /api/db/tables/{schema}/{name}/columns</code></summary>
+
+```http
+GET /api/db/tables/dbo/Clientes/columns HTTP/1.1
 ```
 
-### `GET /api/db/tables/{schema}/{name}/data?limit=&offset=&columns=`
-Datos paginados (máx. **100** filas por llamada) + FKs de esa página ya resueltas.
+**Respuesta (200 OK):**
+```json
+[
+  { "name": "id_cliente", "type": "int", "size": 10, "nullable": false },
+  { "name": "razon_social", "type": "varchar", "size": 150, "nullable": false },
+  { "name": "email", "type": "varchar", "size": 100, "nullable": true }
+]
+```
+</details>
 
+<details>
+<summary><b>4. Datos Paginados con Resolución FK</b> <code>GET /api/db/tables/{schema}/{name}/data</code></summary>
+
+**Parámetros Query:**
+* `limit` (int, default: 15, max: 100)
+* `offset` (int, default: 0)
+* `columns` (List<String>, opcional)
+* `filterColumn`, `filterOperator`, `filterValue`, `filterValue2` (opcionales)
+
+```http
+GET /api/db/tables/dbo/Facturas/data?limit=15&offset=0 HTTP/1.1
+```
+
+**Respuesta (200 OK):**
 ```json
 {
-  "data": [{ "id_empresa": 1, "Empresa": 12 }],
-  "totalRows": 5321,
+  "data": [
+    { "id_factura": 101, "id_cliente": 12, "monto": 1500.0 }
+  ],
+  "totalRows": 1450,
   "limit": 15,
   "offset": 0,
   "currentPage": 1,
-  "totalPages": 355,
-  "fkColumns": [{ "column": "Empresa", "referencedSchema": "dbo", "referencedTable": "Empresas", "referencedColumn": "id_empresa", "displayColumn": "razon_social", "enabled": true, "custom": true }],
-  "fkResolutions": { "Empresa": [{ "status": "RESOLVED", "value": "Acme S.A." }] }
+  "totalPages": 97,
+  "fkColumns": [
+    {
+      "column": "id_cliente",
+      "referencedSchema": "dbo",
+      "referencedTable": "Clientes",
+      "referencedColumn": "id_cliente",
+      "displayColumn": "razon_social",
+      "enabled": true,
+      "custom": false
+    }
+  ],
+  "fkResolutions": {
+    "id_cliente": [
+      { "status": "RESOLVED", "value": "Acme Sur S.A." }
+    ]
+  }
 }
 ```
+</details>
 
-### `GET /api/db/tables/{schema}/{name}/export?columns=`
-Descarga un reporte `.xlsx` completo (streaming), con las FK ya resueltas.
+<details>
+<summary><b>5. Sugerencias de Cruces (Joins)</b> <code>GET /api/db/custom-reports/suggest-joins</code></summary>
 
-### `POST /api/db/tables/{schema}/{name}/custom-fks`
-Reemplaza el conjunto de FKs personalizadas de una tabla.
+```http
+GET /api/db/custom-reports/suggest-joins?schema=dbo&table=Facturas HTTP/1.1
+```
 
+**Respuesta (200 OK):**
 ```json
 [
   {
-    "fkColumn": "Empresa",
-    "referencedSchema": "dbo",
-    "referencedTable": "Empresas",
-    "referencedColumn": "id_empresa",
-    "displayColumn": "razon_social",
-    "filterColumn": null,
-    "filterValue": null,
-    "enabled": true
+    "sourceColumn": "id_cliente",
+    "targetSchema": "dbo",
+    "targetTable": "Clientes",
+    "targetColumn": "id_cliente",
+    "suggestedJoinType": "LEFT JOIN",
+    "relationshipName": "FK_Facturas_Clientes",
+    "isVirtual": false
   }
 ]
 ```
+</details>
 
-**Ejemplo con `curl`:**
+<details>
+<summary><b>6. Vista Previa de Reporte Personalizado</b> <code>POST /api/db/custom-reports/preview</code></summary>
 
-```bash
-curl -u "$APP_USER:$APP_PASSWORD" \
-  "http://localhost:8080/api/db/tables/dbo/Empresas/data?limit=15&offset=0"
+**Payload Body:**
+```json
+{
+  "baseTable": { "schema": "dbo", "name": "Facturas", "alias": "f" },
+  "joins": [
+    {
+      "type": "LEFT",
+      "targetTable": { "schema": "dbo", "name": "Clientes", "alias": "c" },
+      "onLeftColumn": "f.id_cliente",
+      "onRightColumn": "c.id_cliente"
+    }
+  ],
+  "columns": [
+    { "tableAlias": "f", "columnName": "id_factura", "customLabel": "Folio" },
+    { "tableAlias": "c", "columnName": "razon_social", "customLabel": "Cliente" }
+  ],
+  "limit": 15,
+  "offset": 0
+}
 ```
+</details>
 
-**Códigos de error:**
+<details>
+<summary><b>7. Plantillas de Reportes</b> <code>GET | POST | DELETE /api/db/custom-reports/templates</code></summary>
 
-| Código | Causa | Origen |
-|---|---|---|
-| `400` | Argumento inválido (ej. columna inexistente solicitada) | `IllegalArgumentException` |
-| `403` | Tabla/esquema/columna fuera de la whitelist | `SecurityException` |
-| `429` | Demasiadas exportaciones `.xlsx` concurrentes | `TooManyExportsException` |
-| `500` | Error interno no controlado — se devuelve un `correlationId`; el detalle SQL/driver **nunca** se expone al cliente, solo queda en el log del servidor correlacionado por ese id | `Exception` genérico |
-
----
-
-## Modelo de relaciones (Foreign Keys)
-
-1. **FKs nativas**: detectadas leyendo `DatabaseMetaData.getImportedKeys()`. Las FK compuestas (más de una columna) se omiten — no se resuelven automáticamente.
-2. **FKs personalizadas ("virtuales")**: se declaran desde la UI cuando el modelo físico no tiene el constraint, o para sobrescribir/deshabilitar una FK nativa. Se persisten en `dbo.push_custom_fks` (creada automáticamente al iniciar si no existe).
-3. **Columna de visualización**, en orden de prioridad:
-   1. `displayColumn` explícito de la configuración personalizada.
-   2. Heurística automática: prioriza columnas típicas (`nombre`, `descripcion`, `razon_social`, `titulo`, `email`, …) y, si ninguna calza, la primera columna de tipo texto.
-   3. Fallback: la propia columna referenciada.
-4. **Migración legada**: si existe [`custom-fks.json`](custom-fks.json) en la raíz y `dbo.push_custom_fks` está vacía, su contenido se migra automáticamente a la base de datos al arrancar (una sola vez, sin borrar el archivo original).
-5. **Resolución en lote**: por cada columna FK visible en una página se ejecuta **una** consulta `WHERE pk IN (...)` sobre los valores distintos de esa página — el costo depende del tamaño de página, no del tamaño de la tabla.
+* `GET /api/db/custom-reports/templates` ➔ Listar plantillas guardadas.
+* `POST /api/db/custom-reports/templates` ➔ Guardar/actualizar plantilla.
+* `DELETE /api/db/custom-reports/templates/{id}` ➔ Eliminar plantilla por ID.
+</details>
 
 ---
 
-## Seguridad
+## 🛡️ Matriz de Seguridad y Rendimiento
 
-| Control | Implementación |
+| Vector / Control | Implementación en PushDbTemplate |
 |---|---|
-| Autenticación | HTTP Basic obligatorio en `/api/**`; sin `APP_USER`/`APP_PASSWORD` la app no arranca (`SecurityConfig`) |
-| Autorización | `/actuator/health` público · `/actuator/**` autenticado · `/api/**` autenticado · resto permitido (assets estáticos del SPA) |
-| Inyección SQL | *Whitelisting* estricto: toda tabla/columna solicitada se valida contra la metadata real de la BD antes de construir cualquier SQL; identificadores escapados con corchetes (`[ ]`) estilo T-SQL |
-| Formula/CSV Injection | Valores que inician con `=`, `+`, `-`, `@`, tab o CR se neutralizan con apóstrofe inicial — tanto en el export Excel del backend como en el CSV del frontend |
-| CSRF | Desactivado por no aplicar: API *stateless*, sin cookies de sesión (`SessionCreationPolicy.STATELESS`) |
-| Cabeceras HTTP | `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:` |
-| Exposición de errores | Excepciones no controladas devuelven mensaje genérico + `correlationId`; el stacktrace queda solo en el log del servidor |
-| Exfiltración masiva | `EXPORT_MAX_ROWS` limita el tamaño de un reporte exportable |
-| Agotamiento de recursos | `EXPORT_MAX_CONCURRENT` (semáforo) limita exportaciones simultáneas para no agotar el pool de HikariCP |
-| Credenciales en tránsito | `jdbcUrl` expuesto en `/api/db/info` enmascara `user=`/`password=` antes de responder |
-| Contenedor | Runtime Docker ejecuta como usuario sin privilegios (`appuser`), no como `root` |
-
-> El transporte HTTPS/TLS y la exposición pública del servicio (reverse proxy, WAF, rotación de credenciales) son responsabilidad del entorno de despliegue — no están gestionados por la aplicación.
+| **Inyección SQL (SQLi)** | **Whitelisting Riguroso**: Tablas y columnas se verifican contra los metadatos del motor antes de armar consultas. Identificadores delimitados con corchetes `[ ]`. |
+| **Formula & CSV Injection** | Valores que inician con `=`, `+`, `-`, `@`, tabulaciones o saltos de línea se prefijan con `'` tanto en el exportador Excel como en el CSV. |
+| **Autenticación Obligatoria** | Filtro `SecurityConfig` HTTP Basic. Si faltan credenciales en variables de entorno, la app no arranca. |
+| **Agotamiento de Memoria RAM** | Exportaciones a Excel usan `SXSSFWorkbook` (Apache POI) con ventana en disco temporal y límite de filas (`EXPORT_MAX_ROWS`). |
+| **Saturación del Pool JDBC** | Semáforo de concurrencia (`EXPORT_MAX_CONCURRENT`) que devuelve `429 Too Many Requests` ante exceso de exportaciones paralelas. |
+| **Fuga de Información en Errores** | Las excepciones internas devuelven un `correlationId` aleatorio (UUID); nunca se expone el stacktrace SQL ni datos internos al cliente. |
+| **Contenedor Seguro** | La imagen Docker ejecuta sobre un usuario no-root (`appuser`) de mínimos privilegios. |
+| **Políticas de Navegador** | `Content-Security-Policy: default-src 'self' ...` y API completamente *stateless* (sin cookies vulnerables a CSRF). |
 
 ---
 
-## Rendimiento y caché
+## 🧪 Testing y Aseguramiento de Calidad
 
-- **Caffeine** cachea `tables`, `columns`, `foreignKeys`, `fkDisplayColumn` y `tableCount` con `expireAfterWrite=60s` y tamaño máximo de 200 entradas (ver [`application.yaml`](src/main/resources/application.yaml) y [`CacheConfig`](src/main/java/com/LectorDBTemplate/PushDbTemplate/config/CacheConfig.java)).
-- Cabeceras `Cache-Control` del navegador para metadata (30s), alineadas con el TTL de la caché de servidor para no prometer más frescura de la que el backend garantiza.
-- HikariCP afinado para SQL Server: `cachePrepStmts`, `prepStmtCacheSize=250`, `useServerPrepStmts=true`, `sendStringParametersAsUnicode=false`.
-- Exportación `.xlsx` con `SXSSFWorkbook` (ventana de 100 filas en memoria + volcado a disco temporal comprimido) en vez de mantener el libro completo en RAM.
-- Compresión HTTP habilitada para `application/json`, `text/html`, `text/plain`, `text/css` y `application/javascript` (umbral 1 KB).
-
----
-
-## Observabilidad
-
-| Endpoint | Acceso | Propósito |
-|---|---|---|
-| `GET /actuator/health` | Público | *Liveness/readiness probe* para orquestadores |
-| `GET /actuator/metrics` | Autenticado | Métricas de la aplicación (JVM, HTTP, pool de conexiones, etc.) |
-
-El nivel de detalle de `/actuator/health` se controla con `management.endpoint.health.show-details: when-authorized` — el detalle de los *health indicators* solo se expone a peticiones ya autenticadas.
-
----
-
-## Testing y calidad
+El proyecto cuenta con cobertura de pruebas unitarias y de integración para asegurar que cada servicio funcione de forma confiable:
 
 ```bash
+# Ejecutar todas las pruebas del backend
 ./mvnw test
+
+# Ejecutar el linter del frontend
+cd frontend
+npm run lint
 ```
 
-| Test | Cubre |
-|---|---|
-| `PushDbTemplateApplicationTests` | Carga del contexto de Spring |
-| `DatabaseControllerTest` | Endpoints REST, manejo de errores HTTP |
-| `DatabaseServiceTest` | Lógica de paginación, whitelisting, exportación |
-| `DatabaseServiceForeignKeyTest` | Detección y resolución de FKs nativas y personalizadas |
+### Resumen de Suites de Prueba:
 
-Lint del frontend:
-
-```bash
-cd frontend && npm run lint
-```
+| Clase de Prueba | Capa Evaluada | Aspectos Clave Validados |
+|---|---|---|
+| `DatabaseControllerTest` | Controller REST | Códigos HTTP (200, 400, 403, 429, 500), serialización JSON y manejo de correlationId. |
+| `SchemaMetadataServiceTest` | Metadatos y Datos | Whitelisting de identificadores, paginación T-SQL y filtrado dinámico. |
+| `ForeignKeyServiceTest` | Relaciones FK | Detección de FKs nativas, resolución en lote sin N+1 y sugerencias de cruces. |
+| `CustomReportServiceTest` | Reportes Dinámicos | Generación segura de sentencias T-SQL multi-tabla y CRUD de plantillas en BD. |
+| `PushDbTemplateApplicationTests` | Contexto Spring | Carga exitosa del ApplicationContext y configuración de seguridad. |
 
 ---
 
-## Estructura del proyecto
+## 📂 Estructura del Código Fuente
 
 ```
 PushDbTemplate/
 ├── src/main/java/com/LectorDBTemplate/PushDbTemplate/
-│   ├── PushDbTemplateApplication.java   # Entry point
+│   ├── PushDbTemplateApplication.java        # Punto de entrada principal
 │   ├── config/
-│   │   ├── SecurityConfig.java          # HTTP Basic, CSP, stateless
-│   │   ├── DatabaseConfig.java          # Hook de arranque (HikariCP vía application.yaml)
-│   │   ├── CacheConfig.java             # @EnableCaching (aislado para no romper slice tests)
-│   │   └── IndexRedirectFilter.java     # Normaliza /index.html → /
+│   │   ├── SecurityConfig.java               # Configuración de Spring Security & CSP
+│   │   ├── DatabaseConfig.java               # Hook de inicialización de tablas del sistema
+│   │   ├── CacheConfig.java                  # Configuración de Caffeine Cache
+│   │   └── IndexRedirectFilter.java          # Normalización de rutas SPA
 │   ├── controller/
-│   │   └── DatabaseController.java      # Endpoints REST + manejo centralizado de errores
+│   │   └── DatabaseController.java           # Endpoints REST y ExceptionHandler central
 │   └── service/
-│       └── DatabaseService.java         # Whitelisting, resolución de FKs, export .xlsx
-├── src/test/java/...                    # Tests de controller y service
+│       ├── SchemaMetadataService.java        # Tablas, columnas, conteos y paginación
+│       ├── ForeignKeyService.java            # Detección y resolución de FKs físicas/virtuales
+│       ├── CustomReportService.java          # Motor de consultas multi-tabla y plantillas
+│       ├── ExcelExportService.java           # Streaming SXSSF y control de concurrencia
+│       ├── DatabaseDiagnosticsService.java   # Telemetría de servidor y archivos de datos
+│       └── SqlSafe.java                      # Utilitario de sanitización y escape T-SQL
 ├── src/main/resources/
-│   ├── application.yaml
-│   └── static/                          # Build del frontend embebido (producción)
+│   ├── application.yaml                      # Configuración central de Spring Boot
+│   └── static/                               # Build de producción del frontend SPA
+├── src/test/java/...                         # Suite de tests unitarios y de integración
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx                      # Estado global y orquestación de llamadas a la API
-│   │   ├── components/                  # Ribbon · Spreadsheet · SheetTabs · StatusBar
-│   │   └── utils/fk.js                  # Helpers de formato de resoluciones FK
-│   └── vite.config.js                   # Proxy /api → localhost:8080 en desarrollo
-├── Dockerfile                           # Build multi-stage (frontend + backend + runtime)
-├── .env.example                         # Plantilla de variables de entorno
-└── custom-fks.json                      # (legado) FKs personalizadas, migradas a BD al arrancar
+│   │   ├── App.jsx                           # Orquestador del estado global
+│   │   ├── index.css                         # Sistema de diseño inspirado en Excel
+│   │   ├── components/
+│   │   │   ├── Ribbon.jsx                    # Barra de herramientas superior y modos UX
+│   │   │   ├── Spreadsheet.jsx               # Grilla interactiva tipo Excel
+│   │   │   ├── SheetTabs.jsx                 # Pestañas inferiores de hojas de cálculo
+│   │   │   ├── StatusBar.jsx                 # Barra de estado inferior y telemetría
+│   │   │   ├── DbaConsoleModal.jsx           # Consola de diagnóstico para administradores
+│   │   │   ├── UserGuideModal.jsx            # Manual interactivo de usuario
+│   │   │   ├── CustomReports.jsx             # Vista principal del constructor de reportes
+│   │   │   └── custom-reports/               # Paneles de Joins, Columnas, Filtros y Modales
+│   │   └── utils/fk.js                       # Utilidades de formateo y mapeo FK
+│   ├── package.json                          # Dependencias de React 19 y Vite 6
+│   └── vite.config.js                        # Configuración del proxy para desarrollo
+├── Dockerfile                                # Build multi-stage para producción
+├── .env.example                              # Plantilla documentada de variables de entorno
+└── pom.xml                                   # Dependencias Maven y configuración del build
 ```
 
 ---
 
-## Limitaciones conocidas
+## ❓ Preguntas Frecuentes y Solución de Problemas
 
-- Las **FKs compuestas** (constraint sobre más de una columna) no se detectan ni resuelven automáticamente.
-- La detección de tablas excluye explícitamente vistas y esquemas de sistema de SQL Server; no soporta otros motores (el driver y el SQL generado son específicos de T-SQL).
-- La caché de metadatos tiene TTL fijo de 60s vía configuración; cambios de esquema en caliente pueden tardar hasta ese tiempo en reflejarse (o requieren reinicio/`evictCacheForTable`).
-- No incluye un mecanismo de auditoría de "quién exportó qué" más allá de los logs de aplicación.
+<details>
+<summary><b>1. ¿La aplicación puede modificar o borrar datos de mi SQL Server?</b></summary>
+<br>
+<b>No.</b> Todas las consultas sobre las tablas de negocio se ejecutan exclusivamente mediante sentencias <code>SELECT</code> generadas internamente por la aplicación. Las únicas tablas sobre las que la aplicación realiza operaciones de inserción o actualización son sus propias tablas de configuración interna (<code>dbo.push_custom_fks</code> y <code>dbo.push_custom_reports</code>).
+</details>
+
+<details>
+<summary><b>2. La aplicación no arranca y lanza un error de seguridad al inicio</b></summary>
+<br>
+Asegúrate de haber creado tu archivo <code>.env</code> en la raíz del proyecto y que las variables <code>APP_USER</code> y <code>APP_PASSWORD</code> no estén vacías. Por diseño, la aplicación previene iniciar si no existe un usuario definido para proteger la API.
+</details>
+
+<details>
+<summary><b>3. ¿Cómo cambio el nombre que se muestra para una clave foránea (FK)?</b></summary>
+<br>
+En la grilla de datos, haz doble clic sobre el encabezado de la columna FK. Se abrirá el modal de configuración de la relación donde podrás elegir cualquier columna de texto de la tabla destino en el campo <b>Columna a Mostrar</b>.
+</details>
+
+<details>
+<summary><b>4. ¿Por qué una exportación a Excel devuelve código HTTP 429?</b></summary>
+<br>
+Para evitar saturar los recursos de tu servidor SQL Server, el sistema limita el número de descargas simultáneas pesadas mediante <code>EXPORT_MAX_CONCURRENT</code> (por defecto: 2). Si varios usuarios descargan reportes al mismo tiempo, el sistema les pedirá esperar unos segundos antes de reintentar.
+</details>
 
 ---
 
-## Licencia
+<div align="center">
 
-Este proyecto no declara actualmente una licencia de código abierto (`pom.xml` mantiene el bloque `<license/>` vacío). Consulta con el propietario del repositorio antes de redistribuir o reutilizar el código fuera de la organización.
+**Hecho con pasión para optimizar el trabajo de analistas, consultores y administradores de bases de datos.**  
+*PushDbTemplate — Tu base de datos SQL Server, ahora tan fácil y potente como Excel.*
+
+</div>
