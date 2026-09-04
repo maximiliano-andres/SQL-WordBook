@@ -45,6 +45,8 @@ import static org.mockito.Mockito.when;
 class CustomReportServiceTest {
 
     @Mock
+    private DynamicDataSourceService dynamicDataSourceService;
+    @Mock
     private JdbcTemplate jdbcTemplate;
     @Mock
     private SchemaMetadataService schemaMetadataService;
@@ -61,11 +63,13 @@ class CustomReportServiceTest {
     };
 
     private CustomReportService newService() {
+        when(dynamicDataSourceService.getJdbcTemplate()).thenReturn(jdbcTemplate);
+        when(dynamicDataSourceService.getDialect()).thenReturn(new com.LectorDBTemplate.PushDbTemplate.service.dialect.SqlServerDialect());
         when(schemaMetadataService.isTableValid("dbo", "Facturas")).thenReturn(true);
         when(schemaMetadataService.isTableValid("dbo", "Clientes")).thenReturn(true);
         when(schemaMetadataService.getColumns("dbo", "Facturas")).thenReturn(List.of(FACTURAS_COLS));
         when(schemaMetadataService.getColumns("dbo", "Clientes")).thenReturn(List.of(CLIENTES_COLS));
-        return new CustomReportService(jdbcTemplate, schemaMetadataService);
+        return new CustomReportService(dynamicDataSourceService, schemaMetadataService);
     }
 
     private void stubEmptyResult() {

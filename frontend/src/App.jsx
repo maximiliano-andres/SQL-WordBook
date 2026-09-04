@@ -1,28 +1,33 @@
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import Ribbon from './components/Ribbon';
 import Spreadsheet from './components/Spreadsheet';
 import SheetTabs from './components/SheetTabs';
 import StatusBar from './components/StatusBar';
 import DbaConsoleModal from './components/DbaConsoleModal';
 import UserGuideModal from './components/UserGuideModal';
+import LoginModal from './components/LoginModal';
+import ConnectionModal from './components/ConnectionModal';
 import { ToastProvider, useToast } from './context/ToastContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { fkStatusText } from './utils/fk';
 import { sanitizeForSpreadsheet } from './utils/csv';
 
-// Vista "Reportes Personalizados" (~1600 líneas) se carga solo cuando el usuario
-// realmente la visita, para no sumar su peso al bundle inicial del explorador de tablas.
+// Vista "Reportes Personalizados" se carga solo bajo demanda
 const CustomReports = React.lazy(() => import('./components/CustomReports'));
 
 export default function App() {
   return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
+    <AuthProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </AuthProvider>
   );
 }
 
 function AppContent() {
   const { success, error: toastError, warning, info, confirm } = useToast();
+  const { apiFetch, isAuthenticated } = useAuth();
 
   // Modo de Experiencia: 'simple' (Fácil tipo Excel / Buk) | 'advanced' (Modo DBA / SQL)
   const [uxMode, setUxMode] = useState(() => {
@@ -45,19 +50,24 @@ function AppContent() {
   // Estados de Base de Datos
   const [dbInfo, setDbInfo] = useState(null);
   const [tables, setTables] = useState([]);
-  const [activeTable, setActiveTable] = useState(null); // { schema, name }
+  const [activeTable, setActiveTable] = useState(null);
 
   // Estados de Datos de la Tabla Activa
   const [data, setData] = useState([]);
   const [columns, setColumns] = useState([]);
   const [selectedColumns, setSelectedColumns] = useState([]);
   const [loadedTableKey, setLoadedTableKey] = useState("");
-  // Esquema de columnas cacheado por tabla ("schema.nombre") para no
-  // refetchear /columns en cada cambio de página o límite de filas.
   const [columnsCache, setColumnsCache] = useState({});
+  // Espejo de loadedTableKey/columnsCache leído dentro de fetchTableDataAndSchema
+  // sin declararlos como dependencia: si el callback dependiera de un estado que
+  // él mismo escribe, cada primera carga de una tabla le daría nueva identidad
+  // y retriggerearía el efecto de carga, duplicando el fetch de datos/columnas.
+  const loadedTableKeyRef = useRef(loadedTableKey);
+  const columnsCacheRef = useRef(columnsCache);
+  useEffect(() => { loadedTableKeyRef.current = loadedTableKey; }, [loadedTableKey]);
+  useEffect(() => { columnsCacheRef.current = columnsCache; }, [columnsCache]);
 
-  // Foreign Keys detectadas y resueltas para la página actual (llegan ya calculadas
-  // en /data, ver DatabaseService.resolveForeignKeys). fkDisplayMode: 'id' | 'real' | 'both'.
+  // Foreign Keys detectadas y resueltas
   const [fkColumns, setFkColumns] = useState([]);
   const [fkResolutions, setFkResolutions] = useState({});
   const [fkDisplayMode, setFkDisplayMode] = useState('both');
@@ -71,42 +81,48 @@ function AppContent() {
   // Estados de Control
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [responseTime, setResponseTime] = useState(null); // en ms
+  const [responseTime, setResponseTime] = useState(null);
   const [showDbaConsole, setShowDbaConsole] = useState(false);
   const [showManual, setShowManual] = useState(false);
-  const [appliedFilter, setAppliedFilter] = useState(null); // { column, operator, value }
+  const [showConnectionModal, setShowConnectionModal] = useState(false);
+  const [appliedFilter, setAppliedFilter] = useState(null);
 
   // --- LLAMADA API: INFORMACIÓN CONEXIÓN ---
   const fetchDbInfo = useCallback(async () => {
+    if (!isAuthenticated) return;
     try {
-      const res = await fetch('/api/db/info');
+      const res = await apiFetch('/api/db/info');
       if (!res.ok) throw new Error('Error al conectar con la API de base de datos.');
-      const info = await res.json();
-      setDbInfo(info);
+      const infoData = await res.json();
+      setDbInfo(infoData);
     } catch (err) {
       console.error(err);
       setError('Error al obtener la información de conexión.');
     }
-  }, []);
+  }, [apiFetch, isAuthenticated]);
 
-  // --- LLAMADA API: LISTA DE TABLAS (HOJAS DE TRABAJO) ---
+  // --- LLAMADA API: LISTA DE TABLAS ---
   const fetchTablesList = useCallback(async () => {
+    if (!isAuthenticated) return;
     try {
-      const res = await fetch('/api/db/tables');
+      const res = await apiFetch('/api/db/tables');
       if (!res.ok) throw new Error('Error al recuperar las hojas de trabajo.');
       const list = await res.json();
       setTables(list);
+      // Forma funcional: evita que activeTable sea dependencia de este callback.
+      // De lo contrario, seleccionar la primera tabla le da nueva identidad a
+      // fetchTablesList, lo que retriggerea el efecto de carga inicial y duplica
+      // el fetch de /api/db/info y /api/db/tables en cada arranque.
+      setActiveTable(prev => (list.length > 0 && !prev) ? list[0] : prev);
     } catch (err) {
       console.error(err);
-      setError('Error al recuperar las tablas del servidor SQL.');
+      setError('Error al recuperar las tablas del servidor de base de datos.');
     }
-  }, []);
+  }, [apiFetch, isAuthenticated]);
 
   // --- LLAMADA API: DATOS Y ESTRUCTURA (COMBINADOS) ---
-  // El esquema de columnas de una tabla no cambia entre páginas, así que se
-  // cachea por tabla (columnsCache) y solo se vuelve a pedir al cambiar de tabla.
   const fetchTableDataAndSchema = useCallback(async () => {
-    if (!activeTable) return;
+    if (!activeTable || !isAuthenticated) return;
 
     setIsDataLoading(true);
     setError(null);
@@ -124,15 +140,12 @@ function AppContent() {
     }
     
     const schemaUrl = `/api/db/tables/${encodeURIComponent(activeTable.schema)}/${encodeURIComponent(activeTable.name)}/columns`;
-    // Solo se necesita pedir el esquema si no está cacheado para esta tabla; se lanza en
-    // paralelo con los datos (en vez de esperar a que termine /data) para no sumar su
-    // latencia a la primera carga de cada hoja.
-    const needsSchema = !columnsCache[tableKey];
+    const needsSchema = !columnsCacheRef.current[tableKey];
 
     try {
       const [dataRes, schemaRes] = await Promise.all([
-        fetch(dataUrl),
-        needsSchema ? fetch(schemaUrl) : Promise.resolve(null)
+        apiFetch(dataUrl),
+        needsSchema ? apiFetch(schemaUrl) : Promise.resolve(null)
       ]);
 
       if (!dataRes.ok) {
@@ -141,7 +154,7 @@ function AppContent() {
       }
       const pageResult = await dataRes.json();
 
-      let columnsList = columnsCache[tableKey];
+      let columnsList = columnsCacheRef.current[tableKey];
       if (needsSchema) {
         if (!schemaRes.ok) throw new Error('Error al recuperar esquema de columnas.');
         columnsList = await schemaRes.json();
@@ -156,12 +169,11 @@ function AppContent() {
       setFkColumns(pageResult.fkColumns || []);
       setFkResolutions(pageResult.fkResolutions || {});
 
-      if (loadedTableKey !== tableKey) {
+      if (loadedTableKeyRef.current !== tableKey) {
         setSelectedColumns(columnsList.map(c => c.name));
         setLoadedTableKey(tableKey);
       }
 
-      // Calcular tiempo de respuesta
       const endTime = performance.now();
       setResponseTime(Math.round(endTime - startTime));
     } catch (err) {
@@ -171,29 +183,54 @@ function AppContent() {
     } finally {
       setIsDataLoading(false);
     }
-  }, [activeTable, limit, page, columnsCache, loadedTableKey, appliedFilter]);
+  }, [activeTable, limit, page, appliedFilter, apiFetch, isAuthenticated]);
 
-  // 1. Cargar metadatos iniciales de conexión y tablas al montar
+  // Cargar metadatos iniciales cuando el usuario está autenticado, o limpiar datos al cerrar sesión
   useEffect(() => {
-    fetchDbInfo();
-    fetchTablesList();
-  }, [fetchDbInfo, fetchTablesList]);
+    if (isAuthenticated) {
+      fetchDbInfo();
+      fetchTablesList();
+    } else {
+      setDbInfo(null);
+      setTables([]);
+      setActiveTable(null);
+      setData([]);
+      setColumns([]);
+      setSelectedColumns([]);
+      setColumnsCache({});
+      setLoadedTableKey("");
+      setFkColumns([]);
+      setFkResolutions({});
+      setError(null);
+    }
+  }, [isAuthenticated, fetchDbInfo, fetchTablesList]);
 
-  // 2. Recargar datos cuando cambia la tabla activa, el límite de filas o la página
+  // Recargar datos cuando cambia la tabla activa, el límite de filas o la página
   useEffect(() => {
-    if (activeTable) {
+    if (activeTable && isAuthenticated) {
       fetchTableDataAndSchema();
     }
-  }, [activeTable, limit, page, fetchTableDataAndSchema]);
+  }, [activeTable, limit, page, isAuthenticated, fetchTableDataAndSchema]);
 
-  // --- ACCIÓN: SELECCIONAR NUEVA HOJA (TABLA) ---
-  const handleSelectTable = (table) => {
-    setActiveTable(table);
-    setPage(1); // Reiniciar a la primera página siempre
-    setAppliedFilter(null); // Resetear el filtro al cambiar de tabla
+  // Manejar cambio exitoso de conexión de base de datos
+  const handleConnectionSuccess = (newConnInfo) => {
+    setActiveTable(null);
+    setData([]);
+    setColumns([]);
+    setColumnsCache({});
+    setLoadedTableKey("");
+    setPage(1);
+    setAppliedFilter(null);
+    fetchDbInfo();
+    fetchTablesList();
   };
 
-  // --- ACCIONES DE PAGINACIÓN ---
+  const handleSelectTable = (table) => {
+    setActiveTable(table);
+    setPage(1);
+    setAppliedFilter(null);
+  };
+
   const handlePrevPage = () => {
     if (page > 1) setPage(page - 1);
   };
@@ -202,14 +239,10 @@ function AppContent() {
     if (page < totalPages) setPage(page + 1);
   };
 
-  // --- ACCIÓN: RECARGAR HOJA ---
   const handleRefresh = () => {
     fetchTableDataAndSchema();
   };
 
-  // --- ACCIÓN: EXPORTAR A CSV (CLIENT-SIDE ULTRA RÁPIDO) ---
-  // Exporta las columnas FK según el modo de visualización activo (ID / real / ambos),
-  // igual que se ven en la grilla en ese momento.
   const handleExportCsv = () => {
     if (data.length === 0 || !activeTable) return;
 
@@ -217,7 +250,7 @@ function AppContent() {
     const fkColumnNames = new Set(fkColumns.map(fk => fk.column));
 
     const csvRows = [
-      headers.join(','), // Cabeceras
+      headers.join(','),
       ...data.map((row, rowIndex) =>
         headers.map(header => {
           const val = row[header];
@@ -233,7 +266,6 @@ function AppContent() {
             cellText = val === null ? '' : String(val);
           }
 
-          // Neutralizar posible fórmula (=, +, -, @) antes de escapar comillas
           const escaped = sanitizeForSpreadsheet(cellText).replace(/"/g, '""');
           return `"${escaped}"`;
         }).join(',')
@@ -246,12 +278,10 @@ function AppContent() {
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `${activeTable.schema}_${activeTable.name}_export.csv`);
     document.body.appendChild(link);
-    
     link.click();
     document.body.removeChild(link);
   };
 
-  // --- ACCIÓN: EXPORTAR REPORTE COMPLETO A EXCEL (.XLS) POR STREAMING ---
   const handleExportExcel = async () => {
     if (!activeTable || selectedColumns.length === 0) return;
     
@@ -269,15 +299,13 @@ function AppContent() {
     }
 
     try {
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       if (!response.ok) {
         let errorMessage = 'Error al exportar el archivo.';
         try {
           const errJson = await response.json();
           errorMessage = errJson.error || errorMessage;
-        } catch (e) {
-          // Si no es JSON, mantenemos el mensaje por defecto
-        }
+        } catch (e) {}
         throw new Error(errorMessage);
       }
       
@@ -382,11 +410,9 @@ function AppContent() {
   const submitCustomFks = async (payload) => {
     try {
       const url = `/api/db/tables/${encodeURIComponent(activeTable.schema)}/${encodeURIComponent(activeTable.name)}/custom-fks`;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       
@@ -395,7 +421,6 @@ function AppContent() {
       }
       
       success('Clave foránea actualizada con éxito');
-      // Refrescar los datos para recalcular resoluciones
       handleRefresh();
     } catch (err) {
       console.error(err);
@@ -405,6 +430,16 @@ function AppContent() {
 
   return (
     <div className="app-layout">
+      {/* Modal de Inicio de Sesión / Acceder */}
+      <LoginModal />
+
+      {/* Modal de Conexión de Base de Datos */}
+      <ConnectionModal
+        isOpen={showConnectionModal}
+        onClose={() => setShowConnectionModal(false)}
+        onConnectionSuccess={handleConnectionSuccess}
+      />
+
       {/* Cinta de opciones superior */}
       <Ribbon 
         activeTable={activeTable}
@@ -428,6 +463,7 @@ function AppContent() {
         setFkDisplayMode={setFkDisplayMode}
         onOpenDbaConsole={() => setShowDbaConsole(true)}
         onOpenManual={() => setShowManual(true)}
+        onOpenConnectionModal={() => setShowConnectionModal(true)}
         currentView={currentView}
         setCurrentView={setCurrentView}
         uxMode={uxMode}
@@ -475,7 +511,7 @@ function AppContent() {
           />
         </>
       ) : (
-        /* Módulo Completo de Reportes Personalizados Multi-Tabla (Cruces y Filtros) */
+        /* Módulo Completo de Reportes Personalizados Multi-Tabla */
         <Suspense fallback={(
           <div className="view-state-screen">
             <div className="excel-spinner"></div>
@@ -491,7 +527,7 @@ function AppContent() {
         </Suspense>
       )}
 
-      {/* Modal de Consola DBA (Rendimiento y Seguridad Experto) */}
+      {/* Modal de Consola DBA */}
       {showDbaConsole && dbInfo && (
         <DbaConsoleModal dbInfo={dbInfo} onClose={() => setShowDbaConsole(false)} />
       )}

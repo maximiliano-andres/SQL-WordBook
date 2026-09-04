@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import {
   Database, RefreshCw, Download, Info, Settings,
   ChevronLeft, ChevronRight, Table, Cpu, ShieldAlert, Link2,
-  HelpCircle, Layers
+  HelpCircle, Layers, Plug, LogOut, User
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function Ribbon({
   activeTable,
@@ -27,11 +28,13 @@ export default function Ribbon({
   setFkDisplayMode,
   onOpenDbaConsole,
   onOpenManual,
+  onOpenConnectionModal,
   currentView = 'explorer',
   setCurrentView = () => {},
   uxMode = 'simple',
   onSetUxMode = () => {}
 }) {
+  const { user, logout, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('home'); // 'home', 'data', 'about'
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
 
@@ -46,7 +49,7 @@ export default function Ribbon({
       <div className="ribbon-top-bar">
         <div className="excel-logo-area">
           <img src="/logo.png" alt="Logo" className="excel-logo" />
-          <h1 className="app-title">SQL Server <span>Workbook</span></h1>
+          <h1 className="app-title">Multi-DB <span>Workbook</span></h1>
         </div>
 
         {/* Selector de Modo de Trabajo Principal */}
@@ -86,19 +89,40 @@ export default function Ribbon({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Botón de Gestión de Conexión de Base de Datos */}
+          <button
+            className="excel-btn conn-trigger-btn"
+            onClick={onOpenConnectionModal}
+            title={dbInfo ? `Conexión activa: ${dbInfo.databaseProduct || 'BD'} (${dbInfo.currentDatabase || 'Principal'}). Clic para administrar o alternar motor.` : 'Configurar conexión de base de datos'}
+          >
+            <Plug size={13} className="excel-icon" style={{ color: 'var(--excel-green-light)' }} />
+            <span>{dbInfo ? `${dbInfo.databaseProduct || 'BD'}${dbInfo.currentDatabase ? ` · ${dbInfo.currentDatabase}` : ''}` : 'Conexión BD'}</span>
+            <span className={`status-dot ${dbInfo?.databaseProduct ? 'online' : ''}`}></span>
+          </button>
+
           <button
             className="excel-btn"
             onClick={onOpenManual}
             style={{ padding: '4px 10px', fontSize: '11px', gap: '4px', height: '26px' }}
-            title="Abrir Manual de Uso Interactivo"
+            title="Abrir Manual de Uso Interactivo y atajos de teclado"
           >
             <HelpCircle size={13} className="excel-icon" style={{ color: 'var(--excel-green-light)' }} />
             <span>Guía</span>
           </button>
-          {uxMode === 'advanced' && (
-            <div className="db-status">
-              <span className={`status-dot ${dbInfo?.databaseProduct ? 'online' : ''}`}></span>
-              <span>{dbInfo?.databaseProduct || 'Desconectado'}</span>
+
+          {/* Perfil de Usuario y Logout */}
+          {isAuthenticated && user && (
+            <div className="user-profile-pill" title={`Usuario autenticado: ${user.username}. Clic en el icono de salir para cerrar sesión.`}>
+              <User size={13} style={{ color: 'var(--excel-green-light)' }} />
+              <span className="user-profile-name">{user.username}</span>
+              <button
+                type="button"
+                className="user-logout-btn"
+                onClick={logout}
+                title="Cerrar sesión de usuario"
+              >
+                <LogOut size={12} />
+              </button>
             </div>
           )}
         </div>
@@ -288,7 +312,7 @@ export default function Ribbon({
                     border: '1px solid var(--excel-border)',
                     borderRadius: '6px',
                     boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-                    zIndex: 100,
+                    zIndex: 500,
                     display: 'flex',
                     flexDirection: 'column',
                     padding: '12px'

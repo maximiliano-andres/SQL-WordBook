@@ -63,26 +63,17 @@ export default function SheetTabs({
       </div>
 
       {/* Buscador de "Hojas" integrado */}
-      <div style={{ display: 'flex', alignItems: 'center', position: 'relative', width: '220px' }}>
+      <div className="sheet-search-box">
         <Search 
           size={12} 
-          style={{ position: 'absolute', left: '8px', color: 'var(--text-muted)' }} 
+          className="sheet-search-icon"
         />
         <input 
           type="text" 
-          placeholder="Buscar hoja..."
+          placeholder="Buscar..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          style={{
-            width: '100%',
-            backgroundColor: 'var(--excel-bg-app)',
-            border: '1px solid var(--excel-border)',
-            borderRadius: '4px',
-            color: 'var(--text-primary)',
-            fontSize: '11px',
-            padding: '4px 8px 4px 26px',
-            outline: 'none'
-          }}
+          className="sheet-search-input"
         />
       </div>
     </div>

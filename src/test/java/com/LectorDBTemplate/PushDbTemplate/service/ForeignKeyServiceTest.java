@@ -5,6 +5,7 @@ import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.FkStatus;
 import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.ForeignKeyInfo;
 import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.ForeignKeyResolution;
 import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService.ColumnInfo;
+import com.LectorDBTemplate.PushDbTemplate.service.dialect.SqlServerDialect;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,20 +33,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas de la resolución automática de Foreign Keys: detección por metadata real
- * (DatabaseMetaData.getImportedKeys), heurística de columna descriptiva, y clasificación
- * de estados (RESOLVED/NULL/ORPHAN) en la resolución por lote.
- *
- * A diferencia de la versión anterior (DatabaseServiceForeignKeyTest, cuando todo esto vivía
- * en una sola DatabaseService), isTableValid()/getColumns() ahora son llamadas reales a un
- * SchemaMetadataService inyectado — se mockean directamente en vez de simular
- * DatabaseMetaData.getTables() para el whitelisting (ver auditoría, hallazgo F6).
- */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ForeignKeyServiceTest {
 
+    @Mock private DynamicDataSourceService dynamicDataSourceService;
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private SchemaMetadataService schemaMetadataService;
     @Mock private CacheManager cacheManager;
@@ -57,7 +49,11 @@ class ForeignKeyServiceTest {
 
     @BeforeEach
     void setUp() {
-        foreignKeyService = new ForeignKeyService(jdbcTemplate, schemaMetadataService, cacheManager);
+        when(dynamicDataSourceService.getJdbcTemplate()).thenReturn(jdbcTemplate);
+        when(dynamicDataSourceService.getDataSource()).thenReturn(dataSource);
+        when(dynamicDataSourceService.getDialect()).thenReturn(new SqlServerDialect());
+
+        foreignKeyService = new ForeignKeyService(dynamicDataSourceService, schemaMetadataService, cacheManager);
         ReflectionTestUtils.setField(foreignKeyService, "self", foreignKeyService);
     }
 
@@ -67,7 +63,7 @@ class ForeignKeyServiceTest {
         mockConnectionMetadata();
 
         ResultSet importedKeysRs = mock(ResultSet.class);
-        when(metaData.getImportedKeys(null, "dbo", "empleado")).thenReturn(importedKeysRs);
+        when(metaData.getImportedKeys(any(), any(), any())).thenReturn(importedKeysRs);
         when(importedKeysRs.next()).thenReturn(true, false);
         when(importedKeysRs.getString("FK_NAME")).thenReturn("FK_empleado_departamento");
         when(importedKeysRs.getString("FKCOLUMN_NAME")).thenReturn("departamento_id");
@@ -86,8 +82,7 @@ class ForeignKeyServiceTest {
         mockConnectionMetadata();
 
         ResultSet importedKeysRs = mock(ResultSet.class);
-        when(metaData.getImportedKeys(null, "dbo", "detalle_pedido")).thenReturn(importedKeysRs);
-        // Dos columnas bajo el mismo FK_NAME => restricción compuesta
+        when(metaData.getImportedKeys(any(), any(), any())).thenReturn(importedKeysRs);
         when(importedKeysRs.next()).thenReturn(true, true, false);
         when(importedKeysRs.getString("FK_NAME")).thenReturn("FK_compuesta", "FK_compuesta");
         when(importedKeysRs.getString("FKCOLUMN_NAME")).thenReturn("pedido_id", "linea_id");
@@ -150,7 +145,6 @@ class ForeignKeyServiceTest {
         ));
         when(selfMock.resolveDisplayColumn("dbo", "departamento", "id")).thenReturn("nombre");
 
-        // Simula la consulta por lote: solo existen los departamentos 10 y 20 (99 queda huérfano)
         doAnswer(invocation -> {
             RowCallbackHandler handler = invocation.getArgument(1);
             handler.processRow(fakeRow(10, "Finanzas"));
@@ -159,10 +153,10 @@ class ForeignKeyServiceTest {
         }).when(jdbcTemplate).query(anyString(), any(RowCallbackHandler.class), any(Object[].class));
 
         List<Map<String, Object>> rows = List.of(
-                rowOf("id", 1, "departamento_id", 10),   // resuelto
-                rowOf("id", 2, "departamento_id", 20),   // resuelto
-                rowOf("id", 3, "departamento_id", null), // sin valor
-                rowOf("id", 4, "departamento_id", 99)    // huérfano: no existe en departamento
+                rowOf("id", 1, "departamento_id", 10),
+                rowOf("id", 2, "departamento_id", 20),
+                rowOf("id", 3, "departamento_id", null),
+                rowOf("id", 4, "departamento_id", 99)
         );
 
         ForeignKeyResolution result = foreignKeyService.resolveForeignKeys("dbo", "empleado", rows);
@@ -178,7 +172,7 @@ class ForeignKeyServiceTest {
     }
 
     private void mockConnectionMetadata() throws Exception {
-        when(jdbcTemplate.getDataSource()).thenReturn(dataSource);
+        when(dynamicDataSourceService.getDataSource()).thenReturn(dataSource);
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.getMetaData()).thenReturn(metaData);
     }

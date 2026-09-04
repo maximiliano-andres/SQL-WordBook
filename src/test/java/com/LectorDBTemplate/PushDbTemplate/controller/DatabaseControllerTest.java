@@ -3,6 +3,7 @@ package com.LectorDBTemplate.PushDbTemplate.controller;
 import com.LectorDBTemplate.PushDbTemplate.config.SecurityConfig;
 import com.LectorDBTemplate.PushDbTemplate.service.CustomReportService;
 import com.LectorDBTemplate.PushDbTemplate.service.DatabaseDiagnosticsService;
+import com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService;
 import com.LectorDBTemplate.PushDbTemplate.service.ExcelExportService;
 import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService;
 import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.ForeignKeyResolution;
@@ -55,6 +56,8 @@ class DatabaseControllerTest {
     private ExcelExportService excelExportService;
     @MockitoBean
     private DatabaseDiagnosticsService databaseDiagnosticsService;
+    @MockitoBean
+    private DynamicDataSourceService dynamicDataSourceService;
 
     @Test
     void tablesEndpoint_withoutCredentials_returns401() throws Exception {

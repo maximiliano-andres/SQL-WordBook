@@ -46,17 +46,20 @@ public class DatabaseController {
     private final CustomReportService customReportService;
     private final ExcelExportService excelExportService;
     private final DatabaseDiagnosticsService databaseDiagnosticsService;
+    private final com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService dynamicDataSourceService;
 
     public DatabaseController(SchemaMetadataService schemaMetadataService,
                                ForeignKeyService foreignKeyService,
                                CustomReportService customReportService,
                                ExcelExportService excelExportService,
-                               DatabaseDiagnosticsService databaseDiagnosticsService) {
+                               DatabaseDiagnosticsService databaseDiagnosticsService,
+                               com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService dynamicDataSourceService) {
         this.schemaMetadataService = schemaMetadataService;
         this.foreignKeyService = foreignKeyService;
         this.customReportService = customReportService;
         this.excelExportService = excelExportService;
         this.databaseDiagnosticsService = databaseDiagnosticsService;
+        this.dynamicDataSourceService = dynamicDataSourceService;
     }
 
     /**
@@ -65,6 +68,44 @@ public class DatabaseController {
     @GetMapping("/info")
     public ResponseEntity<Map<String, Object>> getDatabaseInfo() {
         return ResponseEntity.ok(databaseDiagnosticsService.getDatabaseInfo());
+    }
+
+    /**
+     * Retorna la configuración de la conexión actual a base de datos (sanitizada).
+     */
+    @GetMapping("/connection/current")
+    public ResponseEntity<Map<String, Object>> getCurrentConnection() {
+        return ResponseEntity.ok(dynamicDataSourceService.getCurrentConnectionSummary());
+    }
+
+    /**
+     * Retorna los motores de base de datos soportados con sus puertos y configuraciones por defecto.
+     */
+    @GetMapping("/connection/presets")
+    public ResponseEntity<List<Map<String, Object>>> getConnectionPresets() {
+        return ResponseEntity.ok(dynamicDataSourceService.getPresets());
+    }
+
+    /**
+     * Prueba conectividad contra una base de datos sin alterar la conexión activa.
+     */
+    @PostMapping("/connection/test")
+    public ResponseEntity<com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.TestResult> testConnection(
+            @RequestBody com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectionConfig config) {
+        return ResponseEntity.ok(dynamicDataSourceService.testConnection(config));
+    }
+
+    /**
+     * Conecta y activa en caliente una nueva base de datos.
+     */
+    @PostMapping("/connection/connect")
+    public ResponseEntity<com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectResult> connect(
+            @RequestBody com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectionConfig config) {
+        com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectResult result = dynamicDataSourceService.connectTo(config);
+        if (!result.success()) {
+            return ResponseEntity.status(400).body(result);
+        }
+        return ResponseEntity.ok(result);
     }
 
     // TTL corto para las cabeceras de caché del navegador en metadata poco cambiante

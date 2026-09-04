@@ -10,6 +10,8 @@ import ReportResultsGrid from './custom-reports/ReportResultsGrid';
 import SaveTemplateModal from './custom-reports/SaveTemplateModal';
 import TemplatesModal from './custom-reports/TemplatesModal';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { sanitizeForSpreadsheet } from '../utils/csv';
 
 // Orquestador del módulo "Reportes Personalizados": mantiene todo el estado y los
 // handlers, y delega la presentación a los paneles/modales de ./custom-reports.
@@ -23,6 +25,7 @@ export default function CustomReports({
   uxMode = 'simple'
 }) {
   const { success, error: toastError, warning: toastWarning, info: toastInfo, confirm } = useToast();
+  const { apiFetch } = useAuth();
   // --- Estados de Plantilla / Configuración ---
   const [reportId, setReportId] = useState(null);
   const [reportName, setReportName] = useState('Nuevo Reporte Personalizado');
@@ -77,8 +80,8 @@ export default function CustomReports({
       return columnsCache[key];
     }
     try {
-      const res = await fetch(`/api/db/tables/${encodeURIComponent(schema)}/${encodeURIComponent(name)}/columns`);
-      if (res.ok) {
+      const res = await apiFetch(`/api/db/tables/${encodeURIComponent(schema)}/${encodeURIComponent(name)}/columns`);
+      if (res && res.ok) {
         const cols = await res.json();
         setColumnsCache(prev => ({ ...prev, [key]: cols }));
         return cols;
@@ -87,7 +90,7 @@ export default function CustomReports({
       console.error('Error fetching columns for', key, err);
     }
     return [];
-  }, [columnsCache, setColumnsCache]);
+  }, [columnsCache, setColumnsCache, apiFetch]);
 
   // Lista de todas las tablas activas en la consulta actual (base + unidas)
   const participatingTables = useMemo(() => {
@@ -120,15 +123,15 @@ export default function CustomReports({
   // Cargar plantillas de reportes guardadas al montar
   const loadTemplates = useCallback(async () => {
     try {
-      const res = await fetch('/api/db/custom-reports/templates');
-      if (res.ok) {
+      const res = await apiFetch('/api/db/custom-reports/templates');
+      if (res && res.ok) {
         const data = await res.json();
         setTemplates(data);
       }
     } catch (e) {
       console.error('Error cargando plantillas', e);
     }
-  }, []);
+  }, [apiFetch]);
 
   useEffect(() => {
     loadTemplates();
@@ -154,21 +157,18 @@ export default function CustomReports({
     }
     setIsLoadingSuggestions(true);
     try {
-      const allSuggestions = [];
-      for (const t of currentTables) {
-        const res = await fetch(`/api/db/custom-reports/suggest-joins?schema=${encodeURIComponent(t.schema)}&table=${encodeURIComponent(t.name)}`);
-        if (res.ok) {
-          const list = await res.json();
-          list.forEach(item => {
-            allSuggestions.push({
-              ...item,
-              originTableAlias: t.alias,
-              originTableName: t.name,
-              originSchema: t.schema
-            });
-          });
-        }
-      }
+      const perTableSuggestions = await Promise.all(currentTables.map(async (t) => {
+        const res = await apiFetch(`/api/db/custom-reports/suggest-joins?schema=${encodeURIComponent(t.schema)}&table=${encodeURIComponent(t.name)}`);
+        if (!res || !res.ok) return [];
+        const list = await res.json();
+        return list.map(item => ({
+          ...item,
+          originTableAlias: t.alias,
+          originTableName: t.name,
+          originSchema: t.schema
+        }));
+      }));
+      const allSuggestions = perTableSuggestions.flat();
       // Deduplicar sugerencias
       const seen = new Set();
       const unique = allSuggestions.filter(s => {
@@ -183,7 +183,7 @@ export default function CustomReports({
     } finally {
       setIsLoadingSuggestions(false);
     }
-  }, []);
+  }, [apiFetch]);
 
   // Seleccionar tabla base inicial
   const handleSelectBaseTable = useCallback((tableKey) => {
@@ -484,14 +484,14 @@ export default function CustomReports({
     const query = buildQueryPayload(targetPage, targetLimit, targetDistinct);
 
     try {
-      const res = await fetch('/api/db/custom-reports/preview', {
+      const res = await apiFetch('/api/db/custom-reports/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(query)
       });
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
+      if (!res || !res.ok) {
+        const errJson = res ? await res.json().catch(() => ({})) : {};
         throw new Error(errJson.error || 'Error al ejecutar la consulta del reporte.');
       }
 
@@ -510,7 +510,7 @@ export default function CustomReports({
     } finally {
       setIsExecuting(false);
     }
-  }, [baseTable, selectedColumns, buildQueryPayload, limit, isDistinct]);
+  }, [baseTable, selectedColumns, buildQueryPayload, limit, isDistinct, apiFetch]);
 
   // Alternar eliminación de duplicados (DISTINCT)
   const handleToggleDistinct = useCallback(() => {
@@ -520,21 +520,20 @@ export default function CustomReports({
   }, [isDistinct, handleExecuteQuery, limit]);
 
   // Exportar a Excel (.xlsx)
-  // Exportar a Excel (.xlsx)
   const handleExportExcel = useCallback(async () => {
     if (!baseTable || selectedColumns.length === 0) return;
     setIsExportingExcel(true);
     const query = buildQueryPayload(1, 1000000, isDistinct); // Sin límite para exportación
 
     try {
-      const res = await fetch('/api/db/custom-reports/export', {
+      const res = await apiFetch('/api/db/custom-reports/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(query)
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+      if (!res || !res.ok) {
+        const err = res ? await res.json().catch(() => ({})) : {};
         throw new Error(err.error || 'Error al descargar el archivo de Excel.');
       }
 
@@ -553,7 +552,7 @@ export default function CustomReports({
     } finally {
       setIsExportingExcel(false);
     }
-  }, [baseTable, selectedColumns, buildQueryPayload, isDistinct, reportName, success, toastError]);
+  }, [baseTable, selectedColumns, buildQueryPayload, isDistinct, reportName, success, toastError, apiFetch]);
 
   // Exportar vista actual a CSV
   const handleExportCsv = useCallback(() => {
@@ -565,7 +564,8 @@ export default function CustomReports({
       const rowVals = cols.map(colName => {
         const val = row[colName];
         if (val === null || val === undefined) return '""';
-        return `"${String(val).replace(/"/g, '""')}"`;
+        const sanitized = sanitizeForSpreadsheet(val);
+        return `"${String(sanitized).replace(/"/g, '""')}"`;
       });
       csv += rowVals.join(',') + '\n';
     });
@@ -603,13 +603,13 @@ export default function CustomReports({
         configJson: JSON.stringify(config)
       };
 
-      const res = await fetch('/api/db/custom-reports/templates', {
+      const res = await apiFetch('/api/db/custom-reports/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('Error al guardar la plantilla.');
+      if (!res || !res.ok) throw new Error('Error al guardar la plantilla.');
       const saved = await res.json();
       setReportId(saved.id);
       setReportName(saved.name);
@@ -620,7 +620,7 @@ export default function CustomReports({
     } catch (err) {
       toastError(err.message);
     }
-  }, [tempReportName, tempReportDesc, baseTable, joins, selectedColumns, filters, sorts, isDistinct, reportId, loadTemplates, success, toastWarning, toastError]);
+  }, [tempReportName, tempReportDesc, baseTable, joins, selectedColumns, filters, sorts, isDistinct, reportId, loadTemplates, success, toastWarning, toastError, apiFetch]);
 
   // Cargar una plantilla
   const handleLoadTemplate = useCallback((tpl) => {
@@ -657,10 +657,10 @@ export default function CustomReports({
       type: 'danger',
       onConfirm: async () => {
         try {
-          const res = await fetch(`/api/db/custom-reports/templates/${encodeURIComponent(id)}`, {
+          const res = await apiFetch(`/api/db/custom-reports/templates/${encodeURIComponent(id)}`, {
             method: 'DELETE'
           });
-          if (res.ok) {
+          if (res && res.ok) {
             setTemplates(prev => prev.filter(t => t.id !== id));
             setReportId(prevId => (prevId === id ? null : prevId));
             success('Plantilla eliminada correctamente');
@@ -670,7 +670,7 @@ export default function CustomReports({
         }
       }
     });
-  }, [confirm, success, toastError]);
+  }, [confirm, success, toastError, apiFetch]);
 
   // Reset / Nuevo Reporte
   const handleNewReport = useCallback(() => {

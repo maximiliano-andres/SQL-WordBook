@@ -1,47 +1,50 @@
 package com.LectorDBTemplate.PushDbTemplate.service;
 
 import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService.ColumnInfo;
+import com.LectorDBTemplate.PushDbTemplate.service.dialect.DbDialect;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Motor de reportes personalizados multi-tabla: construcción segura de SQL dinámico (JOINs,
- * filtros, ordenamiento, DISTINCT) sobre tablas ya validadas por SchemaMetadataService, y
- * CRUD de las plantillas guardadas (dbo.push_custom_reports). Extraído de la antigua
- * DatabaseService (ver auditoría, hallazgo F6).
- *
- * Es el código con más ramas condicionales y mayor superficie de construcción dinámica de SQL
- * de todo el proyecto; antes de la auditoría no tenía ni un solo test (ver hallazgo F2 y
- * CustomReportServiceTest).
+ * filtros, ordenamiento, DISTINCT) adaptado al dialecto del motor activo (SQL Server, MySQL, PostgreSQL, Oracle, SQLite, MariaDB)
+ * y persistencia resiliente de plantillas.
  */
 @Service
 public class CustomReportService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private static final Logger log = LoggerFactory.getLogger(CustomReportService.class);
+    private final DynamicDataSourceService dynamicDataSourceService;
     private final SchemaMetadataService schemaMetadataService;
 
-    private static final String CUSTOM_REPORTS_TABLE = "dbo.push_custom_reports";
+    private static final String CUSTOM_REPORTS_TABLE = "push_custom_reports";
+    private final Map<String, ReportTemplate> inMemoryTemplates = new ConcurrentHashMap<>();
 
-    public CustomReportService(JdbcTemplate jdbcTemplate, SchemaMetadataService schemaMetadataService) {
-        this.jdbcTemplate = jdbcTemplate;
+    public CustomReportService(DynamicDataSourceService dynamicDataSourceService, SchemaMetadataService schemaMetadataService) {
+        this.dynamicDataSourceService = dynamicDataSourceService;
         this.schemaMetadataService = schemaMetadataService;
+    }
+
+    private JdbcTemplate getJdbcTemplate() {
+        return dynamicDataSourceService.getJdbcTemplate();
+    }
+
+    private DbDialect getDialect() {
+        return dynamicDataSourceService.getDialect();
     }
 
     // --- Records para Reportes Personalizados Multi-Tabla (Custom Reports) ---
     public record TableRef(String schema, String name, String alias) {}
     public record JoinOn(String tableAlias, String column) {}
     public record JoinDefinition(
-        String type, // "INNER", "LEFT", "RIGHT", "FULL"
+        String type,
         TableRef table,
         JoinOn onLeft,
         JoinOn onRight
@@ -54,15 +57,15 @@ public class CustomReportService {
     public record ReportFilter(
         String tableAlias,
         String column,
-        String operator, // "=", "!=", "<>", ">", "<", ">=", "<=", "LIKE", "NOT LIKE", "IS NULL", "IS NOT NULL", "BETWEEN", "IN"
+        String operator,
         String value,
         String value2,
-        String logic // "AND", "OR"
+        String logic
     ) {}
     public record ReportSort(
         String tableAlias,
         String column,
-        String direction // "ASC", "DESC"
+        String direction
     ) {}
     public record CustomReportQuery(
         TableRef baseTable,
@@ -95,18 +98,30 @@ public class CustomReportService {
     ) {}
 
     public List<ReportTemplate> getReportTemplates() {
-        String sql = "SELECT id, name, description, config_json, " +
-                "CONVERT(NVARCHAR(30), created_at, 126) AS created_at, " +
-                "CONVERT(NVARCHAR(30), updated_at, 126) AS updated_at " +
-                "FROM " + CUSTOM_REPORTS_TABLE + " ORDER BY updated_at DESC";
-        return jdbcTemplate.query(sql, (rs, rowNum) -> new ReportTemplate(
-                rs.getString("id"),
-                rs.getString("name"),
-                rs.getString("description"),
-                rs.getString("config_json"),
-                rs.getString("created_at"),
-                rs.getString("updated_at")
-        ));
+        if (schemaMetadataService.isTableValid(null, CUSTOM_REPORTS_TABLE)) {
+            try {
+                JdbcTemplate jdbc = getJdbcTemplate();
+                String sql = "SELECT id, name, description, config_json, " +
+                        "CAST(created_at AS VARCHAR(30)) AS created_at, " +
+                        "CAST(updated_at AS VARCHAR(30)) AS updated_at " +
+                        "FROM " + CUSTOM_REPORTS_TABLE + " ORDER BY updated_at DESC";
+                List<ReportTemplate> list = jdbc.query(sql, (rs, rowNum) -> new ReportTemplate(
+                        rs.getString("id"),
+                        rs.getString("name"),
+                        rs.getString("description"),
+                        rs.getString("config_json"),
+                        rs.getString("created_at"),
+                        rs.getString("updated_at")
+                ));
+                if (list != null && !list.isEmpty()) {
+                    return list;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        List<ReportTemplate> templates = new ArrayList<>(inMemoryTemplates.values());
+        templates.sort((a, b) -> Objects.compare(b.updatedAt(), a.updatedAt(), Comparator.nullsLast(String::compareTo)));
+        return templates;
     }
 
     public ReportTemplate saveReportTemplate(ReportTemplate template) {
@@ -117,25 +132,41 @@ public class CustomReportService {
                 ? template.id().trim()
                 : UUID.randomUUID().toString();
 
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM " + CUSTOM_REPORTS_TABLE + " WHERE id = ?", Integer.class, id);
+        String now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        ReportTemplate saved = new ReportTemplate(id, template.name().trim(), template.description(), template.configJson(), now, now);
+        inMemoryTemplates.put(id, saved);
 
-        if (count != null && count > 0) {
-            jdbcTemplate.update(
-                    "UPDATE " + CUSTOM_REPORTS_TABLE + " SET name = ?, description = ?, config_json = ?, updated_at = GETDATE() WHERE id = ?",
-                    template.name().trim(), template.description(), template.configJson(), id);
-        } else {
-            jdbcTemplate.update(
-                    "INSERT INTO " + CUSTOM_REPORTS_TABLE + " (id, name, description, config_json, created_at, updated_at) VALUES (?, ?, ?, ?, GETDATE(), GETDATE())",
-                    id, template.name().trim(), template.description(), template.configJson());
+        if (schemaMetadataService.isTableValid(null, CUSTOM_REPORTS_TABLE)) {
+            try {
+                JdbcTemplate jdbc = getJdbcTemplate();
+                Integer count = jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM " + CUSTOM_REPORTS_TABLE + " WHERE id = ?", Integer.class, id);
+
+                if (count != null && count > 0) {
+                    jdbc.update(
+                            "UPDATE " + CUSTOM_REPORTS_TABLE + " SET name = ?, description = ?, config_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            template.name().trim(), template.description(), template.configJson(), id);
+                } else {
+                    jdbc.update(
+                            "INSERT INTO " + CUSTOM_REPORTS_TABLE + " (id, name, description, config_json, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                            id, template.name().trim(), template.description(), template.configJson());
+                }
+            } catch (Exception e) {
+                log.debug("Persistencia local en memoria de plantilla de reporte {}: {}", id, e.getMessage());
+            }
         }
 
-        return new ReportTemplate(id, template.name().trim(), template.description(), template.configJson(), null, null);
+        return saved;
     }
 
     public void deleteReportTemplate(String id) {
         if (id != null && !id.trim().isEmpty()) {
-            jdbcTemplate.update("DELETE FROM " + CUSTOM_REPORTS_TABLE + " WHERE id = ?", id.trim());
+            inMemoryTemplates.remove(id.trim());
+            if (schemaMetadataService.isTableValid(null, CUSTOM_REPORTS_TABLE)) {
+                try {
+                    getJdbcTemplate().update("DELETE FROM " + CUSTOM_REPORTS_TABLE + " WHERE id = ?", id.trim());
+                } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -152,23 +183,17 @@ public class CustomReportService {
             List<Object> selectAllParams,
             List<ReportColumn> validatedColumns,
             String prettySqlPreview,
-            // fromClauseSql/whereSql/tableAliasMap: fragmentos crudos (no expuestos en el SQL
-            // final) que necesita ExcelExportService para armar, por cada columna proyectada
-            // que tenga FK, una consulta "SELECT DISTINCT <col> FROM <mismo FROM+WHERE>" y así
-            // resolver IDs a valores descriptivos también en la exportación multi-tabla (ver
-            // auditoría F13). whereSql ya incluye el "\nWHERE " cuando no está vacío.
             String fromClauseSql,
             String whereSql,
             Map<String, TableRef> tableAliasMap
     ) {}
 
-    // Paquete-visible: la usa también ExcelExportService.exportCustomReportToExcel() para
-    // construir la misma consulta (sin límite de página) que exporta a Excel.
     BuiltReportQuery buildReportSql(CustomReportQuery query) {
         if (query == null || query.baseTable() == null) {
             throw new IllegalArgumentException("Se requiere una tabla base válida para construir el reporte.");
         }
 
+        DbDialect dialect = getDialect();
         TableRef base = query.baseTable();
         if (!schemaMetadataService.isTableValid(base.schema(), base.name())) {
             throw new SecurityException("Acceso denegado: Tabla base no válida (" + base.schema() + "." + base.name() + ")");
@@ -181,7 +206,8 @@ public class CustomReportService {
         tableMap.put(baseAlias, new TableRef(base.schema(), base.name(), baseAlias));
 
         StringBuilder fromClause = new StringBuilder();
-        fromClause.append(SqlSafe.buildSafeTableName(base.schema(), base.name())).append(" AS [").append(baseAlias).append("]");
+        fromClause.append(SqlSafe.buildSafeTableName(dialect, base.schema(), base.name()))
+                  .append(" AS ").append(dialect.escapeIdentifier(baseAlias));
 
         // Validar y construir Joins
         if (query.joins() != null) {
@@ -224,9 +250,11 @@ public class CustomReportService {
                 validateColumnExists(rightTable.schema(), rightTable.name(), right.column());
 
                 fromClause.append("\n  ").append(jType).append(" JOIN ")
-                        .append(SqlSafe.buildSafeTableName(jTable.schema(), jTable.name())).append(" AS [").append(jAlias).append("]\n    ON [")
-                        .append(left.tableAlias()).append("].[").append(left.column().replace("]", "]]")).append("] = [")
-                        .append(right.tableAlias()).append("].[").append(right.column().replace("]", "]]")).append("]");
+                        .append(SqlSafe.buildSafeTableName(dialect, jTable.schema(), jTable.name()))
+                        .append(" AS ").append(dialect.escapeIdentifier(jAlias)).append("\n    ON ")
+                        .append(dialect.escapeIdentifier(left.tableAlias())).append(".").append(dialect.escapeIdentifier(left.column()))
+                        .append(" = ")
+                        .append(dialect.escapeIdentifier(right.tableAlias())).append(".").append(dialect.escapeIdentifier(right.column()));
             }
         }
 
@@ -235,7 +263,6 @@ public class CustomReportService {
         StringBuilder selectClause = new StringBuilder();
 
         if (query.columns() == null || query.columns().isEmpty()) {
-            // Default a todas las columnas de la tabla base
             List<ColumnInfo> baseCols = schemaMetadataService.getColumns(base.schema(), base.name());
             for (ColumnInfo col : baseCols) {
                 validatedColumns.add(new ReportColumn(baseAlias, col.name(), col.name()));
@@ -262,8 +289,8 @@ public class CustomReportService {
         for (int i = 0; i < validatedColumns.size(); i++) {
             if (i > 0) selectClause.append(",\n  ");
             ReportColumn rc = validatedColumns.get(i);
-            selectClause.append("[").append(rc.tableAlias()).append("].[").append(rc.column().replace("]", "]]")).append("] AS [")
-                    .append(rc.label().replace("]", "]]")).append("]");
+            selectClause.append(dialect.escapeIdentifier(rc.tableAlias())).append(".").append(dialect.escapeIdentifier(rc.column()))
+                        .append(" AS ").append(dialect.escapeIdentifier(rc.label()));
         }
 
         // Validar y construir Filtros (WHERE)
@@ -291,7 +318,7 @@ public class CustomReportService {
                     logic = "AND";
                 }
 
-                String safeCol = "[" + tAlias + "].[" + f.column().replace("]", "]]") + "]";
+                String safeCol = dialect.escapeIdentifier(tAlias) + "." + dialect.escapeIdentifier(f.column());
 
                 if (validFilterIndex > 0) {
                     whereClause.append(" ").append(logic).append(" ");
@@ -340,31 +367,29 @@ public class CustomReportService {
                 if (tRef == null) continue;
                 validateColumnExists(tRef.schema(), tRef.name(), sort.column());
 
-                // En SQL Server con DISTINCT, la columna del ORDER BY debe estar presente en el SELECT
                 if (isDistinct) {
                     boolean isInSelect = validatedColumns.stream().anyMatch(c ->
                             c.tableAlias().equalsIgnoreCase(tAlias) && c.column().equalsIgnoreCase(sort.column())
                     );
-                    if (!isInSelect) {
-                        continue;
-                    }
+                    if (!isInSelect) continue;
                 }
 
                 String dir = ("DESC".equalsIgnoreCase(sort.direction())) ? "DESC" : "ASC";
                 if (orderByClause.length() > 0) orderByClause.append(", ");
-                orderByClause.append("[").append(tAlias).append("].[").append(sort.column().replace("]", "]]")).append("] ").append(dir);
+                orderByClause.append(dialect.escapeIdentifier(tAlias)).append(".")
+                             .append(dialect.escapeIdentifier(sort.column())).append(" ").append(dir);
             }
         }
         if (orderByClause.length() == 0) {
             if (isDistinct && !validatedColumns.isEmpty()) {
                 ReportColumn firstCol = validatedColumns.get(0);
-                orderByClause.append("[").append(firstCol.tableAlias()).append("].[").append(firstCol.column().replace("]", "]]")).append("] ASC");
+                orderByClause.append(dialect.escapeIdentifier(firstCol.tableAlias())).append(".")
+                             .append(dialect.escapeIdentifier(firstCol.column())).append(" ASC");
             } else {
-                orderByClause.append("(SELECT NULL)");
+                orderByClause.append(dialect.buildDefaultOrderBy(isDistinct, List.of()));
             }
         }
 
-        // Armar consultas finales
         String whereSql = whereClause.length() > 0 ? "\nWHERE " + whereClause : "";
 
         String countSql;
@@ -373,9 +398,11 @@ public class CustomReportService {
             for (int i = 0; i < validatedColumns.size(); i++) {
                 if (i > 0) distinctCountCols.append(", ");
                 ReportColumn rc = validatedColumns.get(i);
-                distinctCountCols.append("[").append(rc.tableAlias()).append("].[").append(rc.column().replace("]", "]]")).append("] AS [c").append(i).append("]");
+                distinctCountCols.append(dialect.escapeIdentifier(rc.tableAlias())).append(".")
+                                  .append(dialect.escapeIdentifier(rc.column()))
+                                  .append(" AS ").append(dialect.escapeIdentifier("c" + i));
             }
-            countSql = "SELECT COUNT(*)\nFROM (\n  SELECT DISTINCT " + distinctCountCols + "\n  FROM " + fromClause + whereSql + "\n) AS [__distinct_count_wrapper]";
+            countSql = "SELECT COUNT(*)\nFROM (\n  SELECT DISTINCT " + distinctCountCols + "\n  FROM " + fromClause + whereSql + "\n) AS " + dialect.escapeIdentifier("__distinct_count_wrapper");
         } else {
             countSql = "SELECT COUNT(*)\nFROM " + fromClause + whereSql;
         }
@@ -385,16 +412,14 @@ public class CustomReportService {
         int limit = (query.limit() != null && query.limit() > 0) ? Math.min(query.limit(), 100) : 15;
         int offset = (query.offset() != null && query.offset() >= 0) ? query.offset() : 0;
 
-        String selectPagedSql = selectAllSql + "\nOFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+        String selectPagedSql = dialect.buildPaginationSql(selectAllSql, limit, offset);
 
         List<Object> selectPagedParams = new ArrayList<>(filterParams);
-        selectPagedParams.add(offset);
-        selectPagedParams.add(limit);
+        dialect.appendPaginationParams(selectPagedParams, limit, offset);
 
         List<Object> countParams = new ArrayList<>(filterParams);
         List<Object> selectAllParams = new ArrayList<>(filterParams);
 
-        // Preview descriptivo de la consulta SQL
         String prettySqlPreview = selectAllSql;
 
         return new BuiltReportQuery(
@@ -426,17 +451,14 @@ public class CustomReportService {
         }
     }
 
-    /**
-     * Ejecuta la vista previa paginada de un reporte personalizado multi-tabla.
-     */
     public CustomReportResult executeCustomReportPreview(CustomReportQuery query) {
         long startTime = System.currentTimeMillis();
         BuiltReportQuery built = buildReportSql(query);
 
-        Long total = jdbcTemplate.queryForObject(built.countSql(), Long.class, built.countParams().toArray());
+        Long total = getJdbcTemplate().queryForObject(built.countSql(), Long.class, built.countParams().toArray());
         long totalRows = total != null ? total : 0L;
 
-        List<Map<String, Object>> data = jdbcTemplate.queryForList(built.selectPagedSql(), built.selectPagedParams().toArray());
+        List<Map<String, Object>> data = getJdbcTemplate().queryForList(built.selectPagedSql(), built.selectPagedParams().toArray());
         long elapsed = System.currentTimeMillis() - startTime;
 
         int limit = (query.limit() != null && query.limit() > 0) ? Math.min(query.limit(), 100) : 15;
@@ -453,7 +475,11 @@ public class CustomReportService {
                 totalPages,
                 elapsed,
                 built.prettySqlPreview(),
-                built.validatedColumns()
+                validatedColumns(built)
         );
+    }
+
+    private List<ReportColumn> validatedColumns(BuiltReportQuery built) {
+        return built.validatedColumns();
     }
 }
