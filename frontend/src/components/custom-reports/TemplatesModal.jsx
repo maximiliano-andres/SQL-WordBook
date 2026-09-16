@@ -1,5 +1,6 @@
 import React from 'react';
 import { FolderOpen, X, Trash2 } from 'lucide-react';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 function TemplatesModal({
   show,
@@ -8,17 +9,28 @@ function TemplatesModal({
   onLoadTemplate,
   onDeleteTemplate
 }) {
+  const modalRef = useModalA11y(show, onClose);
+
   if (!show) return null;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+      <div
+        ref={modalRef}
+        className="modal-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '650px' }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="templates-modal-title"
+        tabIndex={-1}
+      >
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FolderOpen size={18} style={{ color: 'var(--excel-green-light)' }} />
-            <h3>Plantillas de Reportes Guardadas</h3>
+            <h3 id="templates-modal-title">Plantillas de Reportes Guardadas</h3>
           </div>
-          <button className="modal-close-btn" onClick={onClose}><X size={16} /></button>
+          <button className="modal-close-btn" onClick={onClose} aria-label="Cerrar"><X size={16} /></button>
         </div>
         <div className="modal-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
           {templates.length === 0 ? (

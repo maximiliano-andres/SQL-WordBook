@@ -112,8 +112,8 @@ class SchemaMetadataServiceTest {
     private SchemaMetadataService spyServiceWithColumns(SchemaMetadataService.ColumnInfo... columns) {
         SchemaMetadataService spy = Mockito.spy(new SchemaMetadataService(dynamicDataSourceService));
         ReflectionTestUtils.setField(spy, "self", spy);
-        doReturn(true).when(spy).isTableValid("dbo", "Empleados");
-        doReturn(List.of(columns)).when(spy).getColumns("dbo", "Empleados");
+        lenient().doReturn(true).when(spy).isTableValid("dbo", "Empleados");
+        lenient().doReturn(List.of(columns)).when(spy).getColumns("dbo", "Empleados");
         return spy;
     }
 
@@ -193,5 +193,29 @@ class SchemaMetadataServiceTest {
 
         assertThat(sqlCaptor.getValue()).isEqualTo("SELECT COUNT(*) FROM [dbo].[Empleados] WHERE [nombre] = ?");
         assertThat(paramsCaptor.getValue()).containsExactly("ana");
+    }
+
+    @Test
+    void resolveValidColumns_handlesCommaSeparatedAndUntrimmedColumnNames() {
+        SchemaMetadataService spy = spyServiceWithColumns(
+                new SchemaMetadataService.ColumnInfo("Rut", "VARCHAR", 20, false),
+                new SchemaMetadataService.ColumnInfo("RazonSocial", "VARCHAR", 100, false),
+                new SchemaMetadataService.ColumnInfo("Giro", "VARCHAR", 100, true)
+        );
+
+        List<String> resolved = spy.resolveValidColumns("dbo", "Empleados", List.of("Rut, RazonSocial", " [Giro] "));
+
+        assertThat(resolved).containsExactly("Rut", "RazonSocial", "Giro");
+    }
+
+    @Test
+    void resolveValidColumns_throwsSecurityException_whenColumnIsSuspiciousOrNotInTable() {
+        SchemaMetadataService spy = spyServiceWithColumns(
+                new SchemaMetadataService.ColumnInfo("Rut", "VARCHAR", 20, false)
+        );
+
+        assertThatThrownBy(() -> spy.resolveValidColumns("dbo", "Empleados", List.of("Giro")))
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("Giro");
     }
 }

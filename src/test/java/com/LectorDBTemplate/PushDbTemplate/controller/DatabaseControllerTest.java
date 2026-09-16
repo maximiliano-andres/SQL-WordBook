@@ -133,6 +133,26 @@ class DatabaseControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    // Hallazgo de auditoría: el frontend reenviaba usuario/contraseña en cada petición porque
+    // la política de sesión era STATELESS. Con IF_REQUIRED, un login por Basic exitoso crea una
+    // sesión de servidor y las peticiones siguientes deben poder autenticarse solo con esa
+    // cookie, sin volver a enviar credenciales.
+    @Test
+    void sessionCookie_fromPriorBasicAuth_authenticatesSubsequentRequestWithoutCredentials() throws Exception {
+        when(schemaMetadataService.getTables()).thenReturn(List.of(new TableInfo("dbo", "Empleados")));
+
+        var firstResult = mockMvc.perform(get("/api/db/tables")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("test-user", "test-pass")))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        var session = firstResult.getRequest().getSession(false);
+        org.junit.jupiter.api.Assertions.assertNotNull(session, "Se esperaba que el login creara una sesión de servidor");
+
+        mockMvc.perform(get("/api/db/tables").session((org.springframework.mock.web.MockHttpSession) session))
+                .andExpect(status().isOk());
+    }
+
     @Test
     void actuatorHealth_isPublic_withoutCredentials() throws Exception {
         // @WebMvcTest no carga la autoconfiguración de Actuator, así que la ruta

@@ -12,6 +12,7 @@ import TemplatesModal from './custom-reports/TemplatesModal';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { sanitizeForSpreadsheet } from '../utils/csv';
+import { pickDescriptiveColumn, getNextAlias as computeNextAlias, buildQueryPayload as buildQueryPayloadPure } from '../utils/reportBuilder';
 
 // Orquestador del módulo "Reportes Personalizados": mantiene todo el estado y los
 // handlers, y delega la presentación a los paneles/modales de ./custom-reports.
@@ -86,11 +87,13 @@ export default function CustomReports({
         setColumnsCache(prev => ({ ...prev, [key]: cols }));
         return cols;
       }
+      toastError(`No se pudieron cargar las columnas de ${key}.`);
     } catch (err) {
       console.error('Error fetching columns for', key, err);
+      toastError(`Error de red al cargar las columnas de ${key}.`);
     }
     return [];
-  }, [columnsCache, setColumnsCache, apiFetch]);
+  }, [columnsCache, setColumnsCache, apiFetch, toastError]);
 
   // Lista de todas las tablas activas en la consulta actual (base + unidas)
   const participatingTables = useMemo(() => {
@@ -138,16 +141,7 @@ export default function CustomReports({
   }, [loadTemplates]);
 
   // Generar alias único correlativo para nuevas tablas unidas
-  const getNextAlias = useCallback(() => {
-    let maxNum = 0;
-    joins.forEach(j => {
-      if (j.table && j.table.alias) {
-        const m = j.table.alias.match(/^t(\d+)$/);
-        if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-      }
-    });
-    return `t${maxNum + 1}`;
-  }, [joins]);
+  const getNextAlias = useCallback(() => computeNextAlias(joins), [joins]);
 
   // Cargar sugerencias de joins para todas las tablas participantes en la consulta
   const loadJoinSuggestionsForTables = useCallback(async (currentTables) => {
@@ -217,7 +211,8 @@ export default function CustomReports({
   }, [loadJoinSuggestionsForTables, fetchColumnsForTable]);
 
   // Agregar un cruce (Join) sugerido automáticamente por FK
-  const handleApplySuggestedJoin = useCallback(async (sug) => {
+  // Agregar un cruce (Join) sugerido automáticamente por FK con opción de sustitución en posición
+  const handleApplySuggestedJoin = useCallback(async (sug, autoReplace = true) => {
     const originTable = participatingTables.find(t => t.alias === sug.originTableAlias) || baseTable;
     const isTargetOther = (sug.sourceSchema === originTable.schema && sug.sourceTable === originTable.name);
     const targetSchema = isTargetOther ? sug.targetSchema : sug.sourceSchema;
@@ -246,18 +241,101 @@ export default function CustomReports({
 
     const cols = await fetchColumnsForTable(targetSchema, targetName);
     if (cols && cols.length > 0) {
-      // Agregar las primeras 3 columnas representativas de la tabla unida
-      const candidateCols = cols.slice(0, 3);
-      setSelectedColumns(prev => [
-        ...prev,
-        ...candidateCols.map(c => ({
-          tableAlias: newAlias,
-          column: c.name,
-          label: `${targetName} - ${c.name}`
-        }))
-      ]);
+      const descCol = pickDescriptiveColumn(cols);
+
+      if (autoReplace && leftCol) {
+        // Sustituir la columna leftCol (FK id) en su posición exacta en selectedColumns
+        setSelectedColumns(prev => {
+          const idx = prev.findIndex(c => c.tableAlias === originTable.alias && c.column.toLowerCase() === leftCol.toLowerCase());
+          if (idx !== -1) {
+            const next = [...prev];
+            next[idx] = {
+              tableAlias: newAlias,
+              column: descCol.name,
+              label: prev[idx].label || descCol.name
+            };
+            return next;
+          }
+          return [...prev, {
+            tableAlias: newAlias,
+            column: descCol.name,
+            label: `${targetName} - ${descCol.name}`
+          }];
+        });
+      } else {
+        // Agregar al final
+        const candidateCols = cols.slice(0, 3);
+        setSelectedColumns(prev => [
+          ...prev,
+          ...candidateCols.map(c => ({
+            tableAlias: newAlias,
+            column: c.name,
+            label: `${targetName} - ${c.name}`
+          }))
+        ]);
+      }
     }
   }, [participatingTables, baseTable, getNextAlias, loadJoinSuggestionsForTables, fetchColumnsForTable]);
+
+  // Reemplazar una columna de la tabla base por una columna de la tabla unida en su posición exacta
+  const handleReplaceBaseColumnWithJoined = useCallback((baseColName, joinedTableAlias, joinedColName, customLabel) => {
+    if (!baseColName || !joinedColName) return;
+    setSelectedColumns(prev => {
+      const idx = prev.findIndex(c => c.column.toLowerCase() === baseColName.toLowerCase());
+      const tableObj = participatingTables.find(t => t.alias === joinedTableAlias);
+      const targetName = tableObj ? tableObj.name : 'Unida';
+
+      if (idx !== -1) {
+        const next = [...prev];
+        next[idx] = {
+          tableAlias: joinedTableAlias,
+          column: joinedColName,
+          label: customLabel || prev[idx].label || joinedColName
+        };
+        return next;
+      } else {
+        return [...prev, {
+          tableAlias: joinedTableAlias,
+          column: joinedColName,
+          label: customLabel || `${targetName} - ${joinedColName}`
+        }];
+      }
+    });
+  }, [participatingTables]);
+
+  // Reemplazar columna por índice en el panel de columnas
+  const handleReplaceColumnByIndex = useCallback((index, newTableAlias, newColumn, newLabel) => {
+    setSelectedColumns(prev => {
+      if (index < 0 || index >= prev.length) return prev;
+      const next = [...prev];
+      const target = next[index];
+      const tableObj = participatingTables.find(t => t.alias === newTableAlias);
+      const label = newLabel || (target ? target.label : newColumn);
+      next[index] = {
+        tableAlias: newTableAlias,
+        column: newColumn,
+        label: label
+      };
+      return next;
+    });
+  }, [participatingTables]);
+
+  // Mover columna arriba / abajo en la secuencia del reporte
+  const handleMoveColumn = useCallback((index, direction) => {
+    setSelectedColumns(prev => {
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(index, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  }, []);
+
+  // Quitar columna seleccionada por índice
+  const handleRemoveSelectedColumn = useCallback((index) => {
+    setSelectedColumns(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
   // Agregar un cruce manual
   const handleAddManualJoin = useCallback(() => {
@@ -445,27 +523,10 @@ export default function CustomReports({
 
   // Construir el payload de consulta
   const buildQueryPayload = useCallback((customPage = page, customLimit = limit, customDistinct = isDistinct) => {
-    if (!baseTable) return null;
-    const offset = (customPage - 1) * customLimit;
-    return {
-      baseTable: {
-        schema: baseTable.schema,
-        name: baseTable.name,
-        alias: baseTable.alias
-      },
-      joins: joins.filter(j => j.table && j.table.name && j.onLeft.column && j.onRight.column).map(j => ({
-        type: j.type,
-        table: j.table,
-        onLeft: j.onLeft,
-        onRight: j.onRight
-      })),
-      columns: selectedColumns,
-      filters: filters.filter(f => f.column && (f.operator === 'IS NULL' || f.operator === 'IS NOT NULL' || f.value !== '')),
-      sorts: sorts.filter(s => s.column),
-      limit: customLimit,
-      offset,
-      distinct: customDistinct
-    };
+    return buildQueryPayloadPure({
+      baseTable, joins, selectedColumns, filters, sorts,
+      page: customPage, limit: customLimit, distinct: customDistinct
+    });
   }, [baseTable, joins, selectedColumns, filters, sorts, page, limit, isDistinct]);
 
   // Ejecutar Consulta
@@ -816,11 +877,13 @@ export default function CustomReports({
               suggestedJoins={suggestedJoins}
               isLoadingSuggestions={isLoadingSuggestions}
               columnsCache={columnsCache}
+              selectedColumns={selectedColumns}
               onSelectBaseTable={handleSelectBaseTable}
               onAddManualJoin={handleAddManualJoin}
               onApplySuggestedJoin={handleApplySuggestedJoin}
               onUpdateJoin={handleUpdateJoin}
               onDeleteJoin={handleDeleteJoin}
+              onReplaceBaseColumnWithJoined={handleReplaceBaseColumnWithJoined}
               uxMode={uxMode}
             />
 
@@ -836,6 +899,9 @@ export default function CustomReports({
               onDeselectAllColumnsOfTable={handleDeselectAllColumnsOfTable}
               onToggleColumn={handleToggleColumn}
               onUpdateColumnLabel={handleUpdateColumnLabel}
+              onMoveColumn={handleMoveColumn}
+              onReplaceColumnByIndex={handleReplaceColumnByIndex}
+              onRemoveSelectedColumn={handleRemoveSelectedColumn}
               uxMode={uxMode}
             />
 

@@ -1,5 +1,6 @@
 package com.LectorDBTemplate.PushDbTemplate.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -52,5 +53,20 @@ public class AuthController {
                 "authenticated", false,
                 "error", "Credenciales no válidas"
         ));
+    }
+
+    /**
+     * Cierra la sesión de servidor actual (invalida la cookie JSESSIONID) y limpia el
+     * contexto de seguridad. El frontend ya no guarda credenciales propias que limpiar:
+     * basta con que el navegador deje de enviar una cookie de sesión válida.
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, Object>> logout(HttpServletRequest request) {
+        var session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        SecurityContextHolder.clearContext();
+        return ResponseEntity.ok(Map.of("success", true));
     }
 }

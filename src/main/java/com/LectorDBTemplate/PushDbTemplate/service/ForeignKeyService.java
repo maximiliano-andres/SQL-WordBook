@@ -5,6 +5,7 @@ import com.LectorDBTemplate.PushDbTemplate.service.dialect.DbDialect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,11 +21,12 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Detección y resolución de relaciones de Foreign Key, tanto físicas (DatabaseMetaData) como
- * virtuales/personalizadas con soporte multi-motor universal.
+ * virtuales/personalizadas con soporte multi-motor universal. Las FKs personalizadas se
+ * persisten contra la base de datos propia de la app (appJdbcTemplate), no contra la conexión
+ * dinámica de negocio que el usuario puede cambiar en caliente (ver AppPersistenceConfig).
  */
 @Service
 public class ForeignKeyService {
@@ -33,6 +35,7 @@ public class ForeignKeyService {
     private final DynamicDataSourceService dynamicDataSourceService;
     private final SchemaMetadataService schemaMetadataService;
     private final org.springframework.cache.CacheManager cacheManager;
+    private final JdbcTemplate appJdbcTemplate;
 
     @Autowired
     @Lazy
@@ -41,15 +44,14 @@ public class ForeignKeyService {
     private static final String LEGACY_CUSTOM_FKS_FILE = "custom-fks.json";
     private static final String CUSTOM_FKS_TABLE = "push_custom_fks";
 
-    // Almacenamiento en memoria para respaldar custom FKs en bases de datos sin tabla push_custom_fks
-    private final Map<String, List<ForeignKeyInfo>> inMemoryCustomFks = new ConcurrentHashMap<>();
-
     public ForeignKeyService(DynamicDataSourceService dynamicDataSourceService,
                              SchemaMetadataService schemaMetadataService,
-                             org.springframework.cache.CacheManager cacheManager) {
+                             org.springframework.cache.CacheManager cacheManager,
+                             @Qualifier("appJdbcTemplate") JdbcTemplate appJdbcTemplate) {
         this.dynamicDataSourceService = dynamicDataSourceService;
         this.schemaMetadataService = schemaMetadataService;
         this.cacheManager = cacheManager;
+        this.appJdbcTemplate = appJdbcTemplate;
     }
 
     private JdbcTemplate getJdbcTemplate() {
@@ -115,11 +117,27 @@ public class ForeignKeyService {
         try {
             ObjectMapper mapper = new ObjectMapper();
             Map<String, List<ForeignKeyInfo>> legacy = mapper.readValue(legacyFile, new TypeReference<Map<String, List<ForeignKeyInfo>>>() {});
+            int migrated = 0;
             for (Map.Entry<String, List<ForeignKeyInfo>> entry : legacy.entrySet()) {
                 String[] parts = entry.getKey().split("\\.", 2);
-                if (parts.length == 2) {
-                    inMemoryCustomFks.put(entry.getKey().toLowerCase(Locale.ROOT), entry.getValue());
-                }
+                if (parts.length != 2) continue;
+                String schema = parts[0];
+                String tableName = parts[1];
+
+                // Migración de una sola vez: si la tabla ya tiene FKs personalizadas guardadas
+                // (por ejemplo, editadas desde la UI después del primer arranque), NO se
+                // sobreescriben en cada reinicio con el contenido desactualizado del JSON legado.
+                Integer existing = appJdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM " + CUSTOM_FKS_TABLE + " WHERE schema_name = ? AND table_name = ?",
+                        Integer.class, schema, tableName);
+                if (existing != null && existing > 0) continue;
+
+                saveCustomFks(schema, tableName, entry.getValue());
+                migrated++;
+            }
+            if (migrated > 0) {
+                log.info("Migración de {} legado a {} completada ({} tabla(s)); se recomienda eliminar el archivo.",
+                        LEGACY_CUSTOM_FKS_FILE, CUSTOM_FKS_TABLE, migrated);
             }
         } catch (Exception e) {
             log.warn("Error al leer {} legado: {}", LEGACY_CUSTOM_FKS_FILE, e.getMessage());
@@ -127,7 +145,6 @@ public class ForeignKeyService {
     }
 
     public synchronized void saveCustomFks(String schema, String tableName, List<ForeignKeyInfo> fks) {
-        String key = ((schema != null ? schema : "dbo") + "." + tableName).toLowerCase(Locale.ROOT);
         Map<String, ForeignKeyInfo> byColumn = new LinkedHashMap<>();
         if (fks != null) {
             for (ForeignKeyInfo fk : fks) {
@@ -137,100 +154,57 @@ public class ForeignKeyService {
             }
         }
 
-        inMemoryCustomFks.put(key, new ArrayList<>(byColumn.values()));
-
-        // Intentamos guardar en la BD conectada si existe la tabla
-        if (schemaMetadataService.isTableValid(null, CUSTOM_FKS_TABLE)) {
-            try {
-                JdbcTemplate jdbc = getJdbcTemplate();
-                jdbc.update("DELETE FROM " + CUSTOM_FKS_TABLE + " WHERE schema_name = ? AND table_name = ?", schema, tableName);
-                for (ForeignKeyInfo fk : byColumn.values()) {
-                    jdbc.update(
-                            "INSERT INTO " + CUSTOM_FKS_TABLE +
-                            " (schema_name, table_name, fk_column, referenced_schema, referenced_table, referenced_column, display_column, filter_column, filter_value, enabled)" +
-                            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            schema, tableName, fk.fkColumn(), fk.referencedSchema(), fk.referencedTable(), fk.referencedColumn(),
-                            fk.displayColumn(), fk.filterColumn(), fk.filterValue(), fk.enabled() ? 1 : 0);
-                }
-            } catch (Exception e) {
-                log.debug("Persistencia local en memoria para {}: {}", key, e.getMessage());
-            }
+        appJdbcTemplate.update("DELETE FROM " + CUSTOM_FKS_TABLE + " WHERE schema_name = ? AND table_name = ?", schema, tableName);
+        for (ForeignKeyInfo fk : byColumn.values()) {
+            appJdbcTemplate.update(
+                    "INSERT INTO " + CUSTOM_FKS_TABLE +
+                    " (schema_name, table_name, fk_column, referenced_schema, referenced_table, referenced_column, display_column, filter_column, filter_value, enabled)" +
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    schema, tableName, fk.fkColumn(), fk.referencedSchema(), fk.referencedTable(), fk.referencedColumn(),
+                    fk.displayColumn(), fk.filterColumn(), fk.filterValue(), fk.enabled() ? 1 : 0);
         }
 
         evictCacheForTable(schema, tableName);
     }
 
     private List<ForeignKeyInfo> loadCustomFks(String schema, String tableName) {
-        String key = ((schema != null ? schema : "dbo") + "." + tableName).toLowerCase(Locale.ROOT);
-        if (schemaMetadataService.isTableValid(null, CUSTOM_FKS_TABLE)) {
-            try {
-                JdbcTemplate jdbc = getJdbcTemplate();
-                String sql = "SELECT fk_column, referenced_schema, referenced_table, referenced_column, " +
-                        "display_column, filter_column, filter_value, enabled " +
-                        "FROM " + CUSTOM_FKS_TABLE + " WHERE schema_name = ? AND table_name = ?";
-                List<ForeignKeyInfo> fromDb = jdbc.query(sql, (rs, rowNum) -> new ForeignKeyInfo(
+        String sql = "SELECT fk_column, referenced_schema, referenced_table, referenced_column, " +
+                "display_column, filter_column, filter_value, enabled " +
+                "FROM " + CUSTOM_FKS_TABLE + " WHERE schema_name = ? AND table_name = ?";
+        return appJdbcTemplate.query(sql, (rs, rowNum) -> new ForeignKeyInfo(
+                rs.getString("fk_column"),
+                rs.getString("referenced_schema"),
+                rs.getString("referenced_table"),
+                rs.getString("referenced_column"),
+                rs.getString("display_column"),
+                rs.getString("filter_column"),
+                rs.getString("filter_value"),
+                rs.getBoolean("enabled"),
+                true
+        ), schema, tableName);
+    }
+
+    private record OwnedCustomFk(String ownerSchema, String ownerTable, ForeignKeyInfo fk) {}
+
+    private List<OwnedCustomFk> loadCustomFksReferencing(String referencedSchema, String referencedTable) {
+        String sql = "SELECT schema_name, table_name, fk_column, referenced_column, " +
+                "display_column, filter_column, filter_value, enabled " +
+                "FROM " + CUSTOM_FKS_TABLE + " WHERE referenced_schema = ? AND referenced_table = ?";
+        return appJdbcTemplate.query(sql, (rs, rowNum) -> new OwnedCustomFk(
+                rs.getString("schema_name"),
+                rs.getString("table_name"),
+                new ForeignKeyInfo(
                         rs.getString("fk_column"),
-                        rs.getString("referenced_schema"),
-                        rs.getString("referenced_table"),
+                        referencedSchema,
+                        referencedTable,
                         rs.getString("referenced_column"),
                         rs.getString("display_column"),
                         rs.getString("filter_column"),
                         rs.getString("filter_value"),
                         rs.getBoolean("enabled"),
                         true
-                ), schema, tableName);
-                if (fromDb != null && !fromDb.isEmpty()) {
-                    return fromDb;
-                }
-            } catch (Exception ignored) {}
-        }
-
-        return inMemoryCustomFks.getOrDefault(key, Collections.emptyList());
-    }
-
-    private record OwnedCustomFk(String ownerSchema, String ownerTable, ForeignKeyInfo fk) {}
-
-    private List<OwnedCustomFk> loadCustomFksReferencing(String referencedSchema, String referencedTable) {
-        List<OwnedCustomFk> result = new ArrayList<>();
-        if (schemaMetadataService.isTableValid(null, CUSTOM_FKS_TABLE)) {
-            try {
-                JdbcTemplate jdbc = getJdbcTemplate();
-                String sql = "SELECT schema_name, table_name, fk_column, referenced_column, " +
-                        "display_column, filter_column, filter_value, enabled " +
-                        "FROM " + CUSTOM_FKS_TABLE + " WHERE referenced_schema = ? AND referenced_table = ?";
-                List<OwnedCustomFk> fromDb = jdbc.query(sql, (rs, rowNum) -> new OwnedCustomFk(
-                        rs.getString("schema_name"),
-                        rs.getString("table_name"),
-                        new ForeignKeyInfo(
-                                rs.getString("fk_column"),
-                                referencedSchema,
-                                referencedTable,
-                                rs.getString("referenced_column"),
-                                rs.getString("display_column"),
-                                rs.getString("filter_column"),
-                                rs.getString("filter_value"),
-                                rs.getBoolean("enabled"),
-                                true
-                        )
-                ), referencedSchema, referencedTable);
-                if (fromDb != null && !fromDb.isEmpty()) {
-                    return fromDb;
-                }
-            } catch (Exception ignored) {}
-        }
-
-        for (Map.Entry<String, List<ForeignKeyInfo>> entry : inMemoryCustomFks.entrySet()) {
-            String[] parts = entry.getKey().split("\\.", 2);
-            String ownerSchema = parts.length == 2 ? parts[0] : "dbo";
-            String ownerTable = parts.length == 2 ? parts[1] : parts[0];
-            for (ForeignKeyInfo fk : entry.getValue()) {
-                if (fk.referencedTable().equalsIgnoreCase(referencedTable) &&
-                   (referencedSchema == null || fk.referencedSchema() == null || fk.referencedSchema().equalsIgnoreCase(referencedSchema))) {
-                    result.add(new OwnedCustomFk(ownerSchema, ownerTable, fk));
-                }
-            }
-        }
-        return result;
+                )
+        ), referencedSchema, referencedTable);
     }
 
     public void evictCacheForTable(String schema, String tableName) {

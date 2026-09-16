@@ -4,6 +4,7 @@ import com.LectorDBTemplate.PushDbTemplate.service.dialect.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.CacheManager;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.sql.DataSource;
 import java.util.ArrayList;
@@ -120,5 +121,32 @@ class DynamicDataSourceServiceTest {
         DynamicDataSourceService.ConnectResult result = dynamicDataSourceService.connectTo(config);
         assertTrue(result.success());
         assertEquals("SQLITE", dynamicDataSourceService.getDialect().getEngineType());
+    }
+
+    // Hallazgo de auditoría: la URL JDBC se logueaba y se exponía sin sanitizar cuando traía
+    // credenciales embebidas (customJdbcUrl es texto libre ingresado por el usuario, que puede
+    // usar el formato de propiedades "password=..." o el formato userinfo "user:pass@host").
+    @Test
+    void sanitizeJdbcUrl_masksPasswordAndUserPropertyStyle() {
+        String url = "jdbc:sqlserver://host:1433;databaseName=db;user=admin;password=s3cr3t!;encrypt=true";
+        String sanitized = ReflectionTestUtils.invokeMethod(dynamicDataSourceService, "sanitizeJdbcUrl", url);
+        assertFalse(sanitized.contains("s3cr3t!"));
+        assertFalse(sanitized.contains("=admin"));
+        assertTrue(sanitized.contains("encrypt=true"));
+    }
+
+    @Test
+    void sanitizeJdbcUrl_masksUserinfoStyleCredentials() {
+        String url = "jdbc:postgresql://admin:s3cr3t!@host:5432/mydb";
+        String sanitized = ReflectionTestUtils.invokeMethod(dynamicDataSourceService, "sanitizeJdbcUrl", url);
+        assertFalse(sanitized.contains("s3cr3t!"));
+        assertFalse(sanitized.contains("admin:"));
+        assertTrue(sanitized.contains("host:5432/mydb"));
+    }
+
+    @Test
+    void sanitizeJdbcUrl_handlesNullGracefully() {
+        String sanitized = ReflectionTestUtils.invokeMethod(dynamicDataSourceService, "sanitizeJdbcUrl", (Object) null);
+        assertEquals("N/A", sanitized);
     }
 }

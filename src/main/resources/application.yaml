@@ -43,6 +43,18 @@ server:
     enabled: true
     mime-types: application/json,text/html,text/plain,text/css,application/javascript
     min-response-size: 1024
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        # SameSite=Lax evita que un sitio de terceros pueda provocar que el navegador adjunte
+        # esta cookie en una petición cross-site (fetch/XHR/POST de formulario), que es
+        # justo el vector que CSRF explota; por eso CSRF permanece deshabilitado en SecurityConfig.
+        same-site: lax
+        # false por defecto porque el desarrollo local corre en http://localhost (una cookie
+        # Secure no viajaría). En producción detrás de HTTPS, definir SESSION_COOKIE_SECURE=true.
+        secure: ${SESSION_COOKIE_SECURE:false}
+      timeout: 8h
 
 # Credenciales HTTP Basic obligatorias para proteger /api/** (ver .env.example)
 app:

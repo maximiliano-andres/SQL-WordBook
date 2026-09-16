@@ -155,24 +155,35 @@ function AppContent() {
       const pageResult = await dataRes.json();
 
       let columnsList = columnsCacheRef.current[tableKey];
-      if (needsSchema) {
-        if (!schemaRes.ok) throw new Error('Error al recuperar esquema de columnas.');
-        columnsList = await schemaRes.json();
+      if (needsSchema || !columnsList || columnsList.length === 0) {
+        if (schemaRes && schemaRes.ok) {
+          columnsList = await schemaRes.json();
+        }
+        if (!columnsList || columnsList.length === 0) {
+          if (pageResult.data && pageResult.data.length > 0) {
+            columnsList = Object.keys(pageResult.data[0]).map(k => ({
+              name: k,
+              type: typeof pageResult.data[0][k] === 'number' ? 'NUMBER' : 'VARCHAR',
+              size: 255,
+              nullable: true
+            }));
+          } else {
+            columnsList = [];
+          }
+        }
         setColumnsCache(prev => ({ ...prev, [tableKey]: columnsList }));
       }
 
       // Guardar estados
-      setData(pageResult.data);
-      setTotalRows(pageResult.totalRows);
+      setData(pageResult.data || []);
+      setTotalRows(pageResult.totalRows || 0);
       setTotalPages(pageResult.totalPages || 1);
-      setColumns(columnsList);
+      setColumns(columnsList || []);
       setFkColumns(pageResult.fkColumns || []);
       setFkResolutions(pageResult.fkResolutions || {});
 
-      if (loadedTableKeyRef.current !== tableKey) {
-        setSelectedColumns(columnsList.map(c => c.name));
-        setLoadedTableKey(tableKey);
-      }
+      setSelectedColumns((columnsList || []).map(c => c.name));
+      setLoadedTableKey(tableKey);
 
       const endTime = performance.now();
       setResponseTime(Math.round(endTime - startTime));
@@ -229,6 +240,8 @@ function AppContent() {
     setActiveTable(table);
     setPage(1);
     setAppliedFilter(null);
+    setSelectedColumns([]);
+    setError(null);
   };
 
   const handlePrevPage = () => {
@@ -283,12 +296,23 @@ function AppContent() {
   };
 
   const handleExportExcel = async () => {
-    if (!activeTable || selectedColumns.length === 0) return;
+    if (!activeTable) return;
     
+    let colsToExport = selectedColumns;
+    if (!colsToExport || colsToExport.length === 0) {
+      colsToExport = columns.map(c => c.name);
+    }
+    if (colsToExport.length === 0 && data.length > 0) {
+      colsToExport = Object.keys(data[0]);
+    }
+    if (colsToExport.length === 0) {
+      warning('No hay columnas disponibles para exportar.');
+      return;
+    }
+
     setIsDataLoading(true);
-    setError(null);
     
-    const columnsParam = selectedColumns.map(col => encodeURIComponent(col)).join(',');
+    const columnsParam = colsToExport.map(col => encodeURIComponent(col)).join(',');
     let url = `/api/db/tables/${encodeURIComponent(activeTable.schema)}/${encodeURIComponent(activeTable.name)}/export?columns=${columnsParam}`;
 
     if (appliedFilter && appliedFilter.column) {
@@ -318,9 +342,10 @@ function AppContent() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
+      success('Reporte Excel descargado exitosamente');
     } catch (err) {
       console.error(err);
-      setError(err.message);
+      toastError(`Error al exportar Excel: ${err.message}`);
     } finally {
       setIsDataLoading(false);
     }

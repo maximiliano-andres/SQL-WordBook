@@ -85,18 +85,29 @@ public class SchemaMetadataService {
     /**
      * Valida si un esquema y tabla existen en la base de datos conectada (Whitelist Validation).
      */
+    /**
+     * Valida si un esquema y tabla existen en la base de datos conectada (Whitelist Validation).
+     */
     public boolean isTableValid(String schema, String tableName) {
-        if (tableName == null) {
+        if (tableName == null || tableName.isBlank()) {
             return false;
         }
-        return self.getTables().stream().anyMatch(t ->
-            (schema == null || t.schema() == null || t.schema().equalsIgnoreCase(schema)) &&
-            t.name().equalsIgnoreCase(tableName)
-        );
+        String cleanTable = tableName.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim();
+        String cleanSchema = (schema != null) ? schema.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim() : null;
+
+        return self.getTables().stream().anyMatch(t -> {
+            boolean nameMatches = t.name().trim().equalsIgnoreCase(cleanTable);
+            if (!nameMatches) return false;
+            if (cleanSchema == null || cleanSchema.isBlank() || t.schema() == null || t.schema().isBlank()) return true;
+            return t.schema().trim().equalsIgnoreCase(cleanSchema)
+                    || cleanSchema.equalsIgnoreCase("dbo")
+                    || t.schema().equalsIgnoreCase("dbo");
+        });
     }
 
     /**
-     * Obtiene la definición de columnas de una tabla seleccionada usando DatabaseMetaData.
+     * Obtiene la definición de columnas de una tabla seleccionada usando DatabaseMetaData
+     * con fallback automático por ResultSetMetaData directo (SELECT * WHERE 1=0).
      */
     @Cacheable(value = "columns", key = "#schema + '.' + #tableName")
     public List<ColumnInfo> getColumns(String schema, String tableName) {
@@ -105,13 +116,14 @@ public class SchemaMetadataService {
         }
 
         List<ColumnInfo> columns = new ArrayList<>();
+        DbDialect dialect = getDialect();
+
         try (Connection conn = Objects.requireNonNull(dynamicDataSourceService.getDataSource()).getConnection()) {
             DatabaseMetaData metaData = conn.getMetaData();
             String catalog = conn.getCatalog();
-            String schemaPattern = (schema != null && !schema.isBlank() && !schema.equalsIgnoreCase("dbo") && !schema.equalsIgnoreCase(catalog))
-                    ? schema : null;
 
-            try (ResultSet rs = metaData.getColumns(catalog, schemaPattern, tableName, "%")) {
+            // Intento 1: Catálogo y esquema indicados
+            try (ResultSet rs = metaData.getColumns(catalog, schema, tableName, "%")) {
                 while (rs.next()) {
                     String columnName = rs.getString("COLUMN_NAME");
                     String dataType = rs.getString("TYPE_NAME");
@@ -120,7 +132,31 @@ public class SchemaMetadataService {
                     columns.add(new ColumnInfo(columnName, dataType, columnSize, "YES".equalsIgnoreCase(isNullable)));
                 }
             }
-            // Fallback si no trajo columnas por catalog/schema mismatch
+            // Intento 2: Catálogo con esquema null (común en SQL Server / MySQL)
+            if (columns.isEmpty()) {
+                try (ResultSet rs = metaData.getColumns(catalog, null, tableName, "%")) {
+                    while (rs.next()) {
+                        String columnName = rs.getString("COLUMN_NAME");
+                        String dataType = rs.getString("TYPE_NAME");
+                        int columnSize = rs.getInt("COLUMN_SIZE");
+                        String isNullable = rs.getString("IS_NULLABLE");
+                        columns.add(new ColumnInfo(columnName, dataType, columnSize, "YES".equalsIgnoreCase(isNullable)));
+                    }
+                }
+            }
+            // Intento 3: Catálogo null con esquema
+            if (columns.isEmpty()) {
+                try (ResultSet rs = metaData.getColumns(null, schema, tableName, "%")) {
+                    while (rs.next()) {
+                        String columnName = rs.getString("COLUMN_NAME");
+                        String dataType = rs.getString("TYPE_NAME");
+                        int columnSize = rs.getInt("COLUMN_SIZE");
+                        String isNullable = rs.getString("IS_NULLABLE");
+                        columns.add(new ColumnInfo(columnName, dataType, columnSize, "YES".equalsIgnoreCase(isNullable)));
+                    }
+                }
+            }
+            // Intento 4: Fallback comodín
             if (columns.isEmpty()) {
                 try (ResultSet rs = metaData.getColumns(null, null, tableName, "%")) {
                     while (rs.next()) {
@@ -133,20 +169,79 @@ public class SchemaMetadataService {
                 }
             }
         } catch (SQLException e) {
-            log.error("Error al recuperar columnas para la tabla {}.{}", schema, tableName, e);
+            log.warn("Error al recuperar columnas por DatabaseMetaData para la tabla {}.{}: {}", schema, tableName, e.getMessage());
         }
+
+        // Intento 5 (Fallback Infalible): Consulta directa de estructura SELECT * FROM table WHERE 1=0
+        if (columns.isEmpty()) {
+            try {
+                String safeTableName = SqlSafe.buildSafeTableName(dialect, schema, tableName);
+                getJdbcTemplate().query("SELECT * FROM " + safeTableName + " WHERE 1 = 0", rs -> {
+                    var rsmd = rs.getMetaData();
+                    int count = rsmd.getColumnCount();
+                    for (int i = 1; i <= count; i++) {
+                        String colName = rsmd.getColumnLabel(i);
+                        if (colName == null || colName.isBlank()) {
+                            colName = rsmd.getColumnName(i);
+                        }
+                        String typeName = rsmd.getColumnTypeName(i);
+                        int colSize = rsmd.getColumnDisplaySize(i);
+                        boolean isNullable = rsmd.isNullable(i) != java.sql.ResultSetMetaData.columnNoNulls;
+                        columns.add(new ColumnInfo(colName, typeName, colSize, isNullable));
+                    }
+                    return null;
+                });
+                log.info("Columnas recuperadas mediante fallback directo de ResultSetMetaData para {}.{} (total: {})", schema, tableName, columns.size());
+            } catch (Exception e) {
+                log.warn("Fallback de ResultSetMetaData falló para {}.{}: {}", schema, tableName, e.getMessage());
+            }
+        }
+
         return columns;
     }
 
     List<String> resolveValidColumns(String schema, String tableName, List<String> requestedColumns) {
-        List<String> validColNames = self.getColumns(schema, tableName).stream().map(ColumnInfo::name).toList();
-        for (String col : requestedColumns) {
-            boolean isValid = validColNames.stream().anyMatch(name -> name.equalsIgnoreCase(col));
-            if (!isValid) {
-                throw new SecurityException("Acceso denegado: Intento de inyección detectado en columna '" + col + "'");
+        if (requestedColumns == null || requestedColumns.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<ColumnInfo> tableCols = self.getColumns(schema, tableName);
+        List<String> validColNames = tableCols.stream().map(ColumnInfo::name).toList();
+
+        // Desempaquetar elementos que puedan contener comas internas (ej: ?columns=Rut,RazonSocial,Giro)
+        List<String> flattenedRequested = new ArrayList<>();
+        for (String item : requestedColumns) {
+            if (item == null) continue;
+            if (item.contains(",")) {
+                for (String part : item.split(",")) {
+                    if (!part.trim().isEmpty()) {
+                        flattenedRequested.add(part.trim());
+                    }
+                }
+            } else if (!item.trim().isEmpty()) {
+                flattenedRequested.add(item.trim());
             }
         }
-        return requestedColumns;
+
+        List<String> resolved = new ArrayList<>();
+        for (String rawCol : flattenedRequested) {
+            String col = rawCol.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim();
+            Optional<String> match = validColNames.stream()
+                    .filter(name -> name.trim().equalsIgnoreCase(col))
+                    .findFirst();
+
+            if (match.isPresent()) {
+                resolved.add(match.get());
+            } else {
+                // Si la tabla no devolvió columnas por metadatos pero el nombre de columna es sintácticamente limpio y seguro
+                if (validColNames.isEmpty() && col.matches("^[a-zA-Z0-9_#$áéíóúÁÉÍÓÚñÑ ]{1,128}$")) {
+                    resolved.add(col);
+                } else {
+                    throw new SecurityException("Acceso denegado: Intento de inyección detectado en columna '" + rawCol + "'");
+                }
+            }
+        }
+        return resolved;
     }
 
     String buildFilterCondition(
@@ -162,9 +257,19 @@ public class SchemaMetadataService {
             return null;
         }
 
+        String cleanCol = filterColumn.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim();
         List<ColumnInfo> tableCols = self.getColumns(schema, tableName);
-        boolean isColValid = tableCols.stream().anyMatch(c -> c.name().equalsIgnoreCase(filterColumn));
-        if (!isColValid) {
+        Optional<String> match = tableCols.stream()
+                .map(ColumnInfo::name)
+                .filter(name -> name.trim().equalsIgnoreCase(cleanCol))
+                .findFirst();
+
+        String colToUse;
+        if (match.isPresent()) {
+            colToUse = match.get();
+        } else if (tableCols.isEmpty() && cleanCol.matches("^[a-zA-Z0-9_#$áéíóúÁÉÍÓÚñÑ ]{1,128}$")) {
+            colToUse = cleanCol;
+        } else {
             throw new SecurityException("Acceso denegado: Nombre de columna no válido para el filtro: '" + filterColumn + "'");
         }
 
@@ -178,7 +283,7 @@ public class SchemaMetadataService {
         }
 
         DbDialect dialect = getDialect();
-        String safeColName = dialect.escapeIdentifier(filterColumn);
+        String safeColName = dialect.escapeIdentifier(colToUse);
 
         if (operator.equals("IS NULL") || operator.equals("IS NOT NULL")) {
             return safeColName + " " + operator;

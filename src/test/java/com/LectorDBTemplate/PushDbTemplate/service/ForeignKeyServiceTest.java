@@ -29,8 +29,12 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +43,7 @@ class ForeignKeyServiceTest {
 
     @Mock private DynamicDataSourceService dynamicDataSourceService;
     @Mock private JdbcTemplate jdbcTemplate;
+    @Mock private JdbcTemplate appJdbcTemplate;
     @Mock private SchemaMetadataService schemaMetadataService;
     @Mock private CacheManager cacheManager;
     @Mock private DataSource dataSource;
@@ -53,7 +58,7 @@ class ForeignKeyServiceTest {
         when(dynamicDataSourceService.getDataSource()).thenReturn(dataSource);
         when(dynamicDataSourceService.getDialect()).thenReturn(new SqlServerDialect());
 
-        foreignKeyService = new ForeignKeyService(dynamicDataSourceService, schemaMetadataService, cacheManager);
+        foreignKeyService = new ForeignKeyService(dynamicDataSourceService, schemaMetadataService, cacheManager, appJdbcTemplate);
         ReflectionTestUtils.setField(foreignKeyService, "self", foreignKeyService);
     }
 
@@ -169,6 +174,35 @@ class ForeignKeyServiceTest {
                 new FkCellResolution(FkStatus.NULL, null),
                 new FkCellResolution(FkStatus.ORPHAN, null)
         );
+    }
+
+    // --- Persistencia de FKs personalizadas: siempre contra la BD fija de la app, nunca
+    // contra la conexión dinámica de negocio (ver auditoría, hallazgo crítico).
+
+    @Test
+    void saveCustomFks_persistsAgainstAppJdbcTemplate_neverAgainstDynamicConnection() {
+        ForeignKeyInfo fk = new ForeignKeyInfo("departamento_id", "dbo", "departamento", "id");
+
+        foreignKeyService.saveCustomFks("dbo", "empleado", List.of(fk));
+
+        verify(appJdbcTemplate).update(anyString(), eq("dbo"), eq("empleado"));
+        verify(appJdbcTemplate).update(anyString(), eq("dbo"), eq("empleado"), eq("departamento_id"),
+                eq("dbo"), eq("departamento"), eq("id"), any(), any(), any(), eq(1));
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void getForeignKeys_readsCustomOverridesFromAppJdbcTemplate_neverFromDynamicConnection() throws Exception {
+        when(schemaMetadataService.isTableValid("dbo", "empleado")).thenReturn(true);
+        mockConnectionMetadata();
+        ResultSet importedKeysRs = mock(ResultSet.class);
+        when(metaData.getImportedKeys(any(), any(), any())).thenReturn(importedKeysRs);
+        when(importedKeysRs.next()).thenReturn(false);
+
+        foreignKeyService.getForeignKeys("dbo", "empleado");
+
+        verify(appJdbcTemplate).query(anyString(), any(org.springframework.jdbc.core.RowMapper.class), eq("dbo"), eq("empleado"));
+        verify(jdbcTemplate, never()).query(anyString(), any(org.springframework.jdbc.core.RowMapper.class), any(Object[].class));
     }
 
     private void mockConnectionMetadata() throws Exception {

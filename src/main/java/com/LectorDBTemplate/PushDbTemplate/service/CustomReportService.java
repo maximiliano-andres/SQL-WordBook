@@ -2,34 +2,34 @@ package com.LectorDBTemplate.PushDbTemplate.service;
 
 import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService.ColumnInfo;
 import com.LectorDBTemplate.PushDbTemplate.service.dialect.DbDialect;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Motor de reportes personalizados multi-tabla: construcción segura de SQL dinámico (JOINs,
  * filtros, ordenamiento, DISTINCT) adaptado al dialecto del motor activo (SQL Server, MySQL, PostgreSQL, Oracle, SQLite, MariaDB)
- * y persistencia resiliente de plantillas.
+ * y persistencia de plantillas contra la base de datos propia de la app (ver AppPersistenceConfig).
  */
 @Service
 public class CustomReportService {
 
-    private static final Logger log = LoggerFactory.getLogger(CustomReportService.class);
     private final DynamicDataSourceService dynamicDataSourceService;
     private final SchemaMetadataService schemaMetadataService;
+    private final JdbcTemplate appJdbcTemplate;
 
     private static final String CUSTOM_REPORTS_TABLE = "push_custom_reports";
-    private final Map<String, ReportTemplate> inMemoryTemplates = new ConcurrentHashMap<>();
 
-    public CustomReportService(DynamicDataSourceService dynamicDataSourceService, SchemaMetadataService schemaMetadataService) {
+    public CustomReportService(DynamicDataSourceService dynamicDataSourceService,
+                                SchemaMetadataService schemaMetadataService,
+                                @Qualifier("appJdbcTemplate") JdbcTemplate appJdbcTemplate) {
         this.dynamicDataSourceService = dynamicDataSourceService;
         this.schemaMetadataService = schemaMetadataService;
+        this.appJdbcTemplate = appJdbcTemplate;
     }
 
     private JdbcTemplate getJdbcTemplate() {
@@ -98,30 +98,18 @@ public class CustomReportService {
     ) {}
 
     public List<ReportTemplate> getReportTemplates() {
-        if (schemaMetadataService.isTableValid(null, CUSTOM_REPORTS_TABLE)) {
-            try {
-                JdbcTemplate jdbc = getJdbcTemplate();
-                String sql = "SELECT id, name, description, config_json, " +
-                        "CAST(created_at AS VARCHAR(30)) AS created_at, " +
-                        "CAST(updated_at AS VARCHAR(30)) AS updated_at " +
-                        "FROM " + CUSTOM_REPORTS_TABLE + " ORDER BY updated_at DESC";
-                List<ReportTemplate> list = jdbc.query(sql, (rs, rowNum) -> new ReportTemplate(
-                        rs.getString("id"),
-                        rs.getString("name"),
-                        rs.getString("description"),
-                        rs.getString("config_json"),
-                        rs.getString("created_at"),
-                        rs.getString("updated_at")
-                ));
-                if (list != null && !list.isEmpty()) {
-                    return list;
-                }
-            } catch (Exception ignored) {}
-        }
-
-        List<ReportTemplate> templates = new ArrayList<>(inMemoryTemplates.values());
-        templates.sort((a, b) -> Objects.compare(b.updatedAt(), a.updatedAt(), Comparator.nullsLast(String::compareTo)));
-        return templates;
+        String sql = "SELECT id, name, description, config_json, " +
+                "CAST(created_at AS VARCHAR(30)) AS created_at, " +
+                "CAST(updated_at AS VARCHAR(30)) AS updated_at " +
+                "FROM " + CUSTOM_REPORTS_TABLE + " ORDER BY updated_at DESC";
+        return appJdbcTemplate.query(sql, (rs, rowNum) -> new ReportTemplate(
+                rs.getString("id"),
+                rs.getString("name"),
+                rs.getString("description"),
+                rs.getString("config_json"),
+                rs.getString("created_at"),
+                rs.getString("updated_at")
+        ));
     }
 
     public ReportTemplate saveReportTemplate(ReportTemplate template) {
@@ -134,26 +122,18 @@ public class CustomReportService {
 
         String now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         ReportTemplate saved = new ReportTemplate(id, template.name().trim(), template.description(), template.configJson(), now, now);
-        inMemoryTemplates.put(id, saved);
 
-        if (schemaMetadataService.isTableValid(null, CUSTOM_REPORTS_TABLE)) {
-            try {
-                JdbcTemplate jdbc = getJdbcTemplate();
-                Integer count = jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM " + CUSTOM_REPORTS_TABLE + " WHERE id = ?", Integer.class, id);
+        Integer count = appJdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM " + CUSTOM_REPORTS_TABLE + " WHERE id = ?", Integer.class, id);
 
-                if (count != null && count > 0) {
-                    jdbc.update(
-                            "UPDATE " + CUSTOM_REPORTS_TABLE + " SET name = ?, description = ?, config_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                            template.name().trim(), template.description(), template.configJson(), id);
-                } else {
-                    jdbc.update(
-                            "INSERT INTO " + CUSTOM_REPORTS_TABLE + " (id, name, description, config_json, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                            id, template.name().trim(), template.description(), template.configJson());
-                }
-            } catch (Exception e) {
-                log.debug("Persistencia local en memoria de plantilla de reporte {}: {}", id, e.getMessage());
-            }
+        if (count != null && count > 0) {
+            appJdbcTemplate.update(
+                    "UPDATE " + CUSTOM_REPORTS_TABLE + " SET name = ?, description = ?, config_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    template.name().trim(), template.description(), template.configJson(), id);
+        } else {
+            appJdbcTemplate.update(
+                    "INSERT INTO " + CUSTOM_REPORTS_TABLE + " (id, name, description, config_json, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                    id, template.name().trim(), template.description(), template.configJson());
         }
 
         return saved;
@@ -161,12 +141,7 @@ public class CustomReportService {
 
     public void deleteReportTemplate(String id) {
         if (id != null && !id.trim().isEmpty()) {
-            inMemoryTemplates.remove(id.trim());
-            if (schemaMetadataService.isTableValid(null, CUSTOM_REPORTS_TABLE)) {
-                try {
-                    getJdbcTemplate().update("DELETE FROM " + CUSTOM_REPORTS_TABLE + " WHERE id = ?", id.trim());
-                } catch (Exception ignored) {}
-            }
+            appJdbcTemplate.update("DELETE FROM " + CUSTOM_REPORTS_TABLE + " WHERE id = ?", id.trim());
         }
     }
 
@@ -444,9 +419,16 @@ public class CustomReportService {
     }
 
     private void validateColumnExists(String schema, String tableName, String column) {
+        if (column == null || column.trim().isEmpty()) {
+            throw new SecurityException("Nombre de columna no puede ser vacío");
+        }
+        String cleanCol = column.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim();
         List<ColumnInfo> cols = schemaMetadataService.getColumns(schema, tableName);
-        boolean exists = cols.stream().anyMatch(c -> c.name().equalsIgnoreCase(column));
+        boolean exists = cols.stream().anyMatch(c -> c.name().trim().equalsIgnoreCase(cleanCol));
         if (!exists) {
+            if (cols.isEmpty() && cleanCol.matches("^[a-zA-Z0-9_#$áéíóúÁÉÍÓÚñÑ ]{1,128}$")) {
+                return;
+            }
             throw new SecurityException("Columna '" + column + "' no existe en tabla " + schema + "." + tableName);
         }
     }

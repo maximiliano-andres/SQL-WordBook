@@ -1,5 +1,6 @@
 import React from 'react';
 import { Save, X } from 'lucide-react';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 function SaveTemplateModal({
   show,
@@ -10,22 +11,34 @@ function SaveTemplateModal({
   setTempReportDesc,
   onSave
 }) {
+  const modalRef = useModalA11y(show, onClose);
+
   if (!show) return null;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+      <div
+        ref={modalRef}
+        className="modal-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '460px' }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="save-template-modal-title"
+        tabIndex={-1}
+      >
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Save size={18} style={{ color: 'var(--excel-green-light)' }} />
-            <h3>Guardar Plantilla de Reporte</h3>
+            <h3 id="save-template-modal-title">Guardar Plantilla de Reporte</h3>
           </div>
-          <button className="modal-close-btn" onClick={onClose}><X size={16} /></button>
+          <button className="modal-close-btn" onClick={onClose} aria-label="Cerrar"><X size={16} /></button>
         </div>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
-            <label className="cr-label"><strong>Nombre del Reporte:</strong></label>
+            <label className="cr-label" htmlFor="save-template-name"><strong>Nombre del Reporte:</strong></label>
             <input
+              id="save-template-name"
               type="text"
               className="excel-input"
               style={{ width: '100%', marginTop: '4px' }}
@@ -35,8 +48,9 @@ function SaveTemplateModal({
             />
           </div>
           <div>
-            <label className="cr-label"><strong>Descripción (Opcional):</strong></label>
+            <label className="cr-label" htmlFor="save-template-desc"><strong>Descripción (Opcional):</strong></label>
             <textarea
+              id="save-template-desc"
               className="excel-input"
               style={{ width: '100%', marginTop: '4px', minHeight: '70px', resize: 'vertical' }}
               value={tempReportDesc}

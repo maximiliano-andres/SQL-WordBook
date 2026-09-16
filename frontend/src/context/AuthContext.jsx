@@ -13,51 +13,32 @@ function utf8ToBase64(str) {
   }
 }
 
+// El backend autentica con HTTP Basic solo en el POST de login (ver SecurityConfig): una vez
+// válido, crea una sesión de servidor (cookie JSESSIONID httpOnly) y las peticiones siguientes
+// viajan autenticadas por esa cookie automáticamente. Por eso el cliente NUNCA guarda usuario ni
+// contraseña -ni en memoria más allá del propio submit, ni en localStorage/sessionStorage- (ver
+// auditoría, hallazgos críticos F1/F2 del frontend).
 export function AuthProvider({ children }) {
-  const [credentials, setCredentials] = useState(() => {
-    try {
-      const saved = localStorage.getItem('pushdb_auth') || sessionStorage.getItem('pushdb_auth');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [user, setUser] = useState(credentials ? { username: credentials.username } : null);
-  const [isAuthenticated, setIsAuthenticated] = useState(!!credentials);
-  const [showLoginModal, setShowLoginModal] = useState(!credentials);
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(true);
   const [authChecking, setAuthChecking] = useState(true);
 
-  // Helper para generar cabecera Authorization Basic
-  const getAuthHeader = useCallback((creds = credentials) => {
-    if (!creds || !creds.username) return {};
-    const encoded = utf8ToBase64(`${creds.username}:${creds.password || ''}`);
-    return { 'Authorization': `Basic ${encoded}` };
-  }, [credentials]);
-
-  // Wrapper universal de fetch que adjunta credenciales y captura 401
+  // Wrapper universal de fetch: la cookie de sesión viaja automáticamente en same-origin,
+  // solo nos encargamos de reaccionar a un 401 (sesión vencida o nunca iniciada).
   const apiFetch = useCallback(async (url, options = {}) => {
-    const headers = {
-      ...getAuthHeader(),
-      ...(options.headers || {})
-    };
-
-    try {
-      const res = await fetch(url, { ...options, headers });
-      if (res.status === 401) {
-        setIsAuthenticated(false);
-        setShowLoginModal(true);
-      }
-      return res;
-    } catch (err) {
-      throw err;
+    const res = await fetch(url, options);
+    if (res.status === 401) {
+      setIsAuthenticated(false);
+      setShowLoginModal(true);
     }
-  }, [getAuthHeader]);
+    return res;
+  }, []);
 
-  // Login
-  const login = useCallback(async (username, password, remember = true) => {
-    const creds = { username: username.trim(), password };
-    const encoded = utf8ToBase64(`${creds.username}:${creds.password || ''}`);
+  // Login: envía credenciales UNA sola vez vía Basic; el backend responde con Set-Cookie de
+  // sesión y desde ahí no hace falta volver a enviarlas.
+  const login = useCallback(async (username, password) => {
+    const encoded = utf8ToBase64(`${username.trim()}:${password || ''}`);
 
     const res = await fetch('/api/auth/login', {
       method: 'POST',
@@ -73,61 +54,51 @@ export function AuthProvider({ children }) {
     }
 
     const data = await res.json();
-    setCredentials(creds);
-    setUser({ username: creds.username });
+    setUser({ username: username.trim() });
     setIsAuthenticated(true);
     setShowLoginModal(false);
-
-    if (remember) {
-      localStorage.setItem('pushdb_auth', JSON.stringify(creds));
-      sessionStorage.removeItem('pushdb_auth');
-    } else {
-      sessionStorage.setItem('pushdb_auth', JSON.stringify(creds));
-      localStorage.removeItem('pushdb_auth');
-    }
-
     return data;
   }, []);
 
-  // Logout
-  const logout = useCallback(() => {
-    localStorage.removeItem('pushdb_auth');
-    sessionStorage.removeItem('pushdb_auth');
-    setCredentials(null);
+  // Logout: invalida la sesión en el servidor; el cliente no tiene ningún secreto propio que borrar.
+  const logout = useCallback(async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Si la petición de logout falla por red, igual limpiamos el estado local.
+    }
     setUser(null);
     setIsAuthenticated(false);
     setShowLoginModal(true);
   }, []);
 
-  // Verificar estado de sesión al inicio
+  // Verificar estado de sesión al inicio (la cookie, si existe, viaja sola).
   useEffect(() => {
     async function verifyAuth() {
-      if (credentials) {
-        try {
-          const res = await apiFetch('/api/auth/status');
-          if (res.ok) {
-            const data = await res.json();
-            if (data.authenticated) {
-              setIsAuthenticated(true);
-              setShowLoginModal(false);
-            } else {
-              setIsAuthenticated(false);
-              setShowLoginModal(true);
-            }
+      try {
+        const res = await fetch('/api/auth/status');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated) {
+            setUser({ username: data.username });
+            setIsAuthenticated(true);
+            setShowLoginModal(false);
           } else {
             setIsAuthenticated(false);
             setShowLoginModal(true);
           }
-        } catch {
-          // Si el backend no responde de inmediato, dejamos el estado actual
+        } else {
+          setIsAuthenticated(false);
+          setShowLoginModal(true);
         }
-      } else {
+      } catch {
+        // Si el backend no responde de inmediato, dejamos el estado actual y mostramos el login.
         setShowLoginModal(true);
       }
       setAuthChecking(false);
     }
     verifyAuth();
-  }, [credentials, apiFetch]);
+  }, []);
 
   // Sin useMemo, un objeto value nuevo en cada render de AuthProvider forzaría
   // el re-render de todo consumidor de useAuth() (Ribbon, Spreadsheet,
@@ -140,9 +111,8 @@ export function AuthProvider({ children }) {
     authChecking,
     login,
     logout,
-    apiFetch,
-    getAuthHeader
-  }), [user, isAuthenticated, showLoginModal, authChecking, login, logout, apiFetch, getAuthHeader]);
+    apiFetch
+  }), [user, isAuthenticated, showLoginModal, authChecking, login, logout, apiFetch]);
 
   return (
     <AuthContext.Provider value={value}>

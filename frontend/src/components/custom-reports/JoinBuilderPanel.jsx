@@ -1,12 +1,10 @@
-import React from 'react';
-import { Plus, Trash2, Sparkles, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Trash2, Sparkles, Check, RefreshCw, ArrowRightLeft } from 'lucide-react';
+import { pickDescriptiveColumn } from '../../utils/reportBuilder';
 
 // PANEL IZQUIERDO del constructor de reportes: selector de tabla base, cadena
-// visual de cruces, sugerencias de FK y lista de joins configurados.
-// Envuelto en React.memo: mientras el usuario edita filtros/ordenamiento (panel
-// derecho) o renombra columnas (panel central), este panel no necesita
-// re-renderizarse porque sus props (tables, baseTable, joins, columnsCache, ...)
-// mantienen la misma identidad de referencia entre esos renders.
+// visual de cruces, sugerencias de FK, lista de joins configurados y herramienta
+// de sustitución de columnas en posición.
 function JoinBuilderPanel({
   tables,
   baseTable,
@@ -14,13 +12,38 @@ function JoinBuilderPanel({
   suggestedJoins,
   isLoadingSuggestions,
   columnsCache,
+  selectedColumns = [],
   onSelectBaseTable,
   onAddManualJoin,
   onApplySuggestedJoin,
   onUpdateJoin,
   onDeleteJoin,
+  onReplaceBaseColumnWithJoined,
   uxMode = 'simple'
 }) {
+  // Estado local para los selectores de reemplazo por cada join: { [joinId]: { baseCol, targetCol } }
+  const [replaceSelections, setReplaceSelections] = useState({});
+  const [lastReplacedBadge, setLastReplacedBadge] = useState(null);
+
+  const handleSetReplaceField = (joinId, field, value) => {
+    setReplaceSelections(prev => ({
+      ...prev,
+      [joinId]: {
+        ...(prev[joinId] || {}),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleExecuteReplace = (join, baseCol, targetCol) => {
+    if (!baseCol || !targetCol) return;
+    if (onReplaceBaseColumnWithJoined) {
+      onReplaceBaseColumnWithJoined(baseCol, join.table.alias, targetCol);
+      setLastReplacedBadge(`${join.id}-${baseCol}`);
+      setTimeout(() => setLastReplacedBadge(null), 3000);
+    }
+  };
+
   return (
     <div className="cr-panel-card">
       <div className="cr-card-header">
@@ -101,15 +124,29 @@ function JoinBuilderPanel({
                         <strong>[{sug.originTableName || baseTable.name}]</strong> ➔ {sug.description}
                       </span>
                     </div>
-                    <button
-                      className="excel-btn"
-                      style={{ fontSize: '10.5px', padding: '2px 8px', height: '22px' }}
-                      onClick={() => onApplySuggestedJoin(sug)}
-                      disabled={isAlreadyAdded}
-                    >
-                      {isAlreadyAdded ? <Check size={12} /> : <Plus size={12} />}
-                      <span>{isAlreadyAdded ? 'Agregado' : 'Unir'}</span>
-                    </button>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button
+                        className="excel-btn primary"
+                        style={{ fontSize: '10px', padding: '2px 7px', height: '22px' }}
+                        onClick={() => onApplySuggestedJoin(sug, true)}
+                        disabled={isAlreadyAdded}
+                        title="Une la tabla y reemplaza el ID original en su misma posición por el dato descriptivo"
+                      >
+                        <RefreshCw size={11} />
+                        <span>{isAlreadyAdded ? 'Agregado' : 'Unir y Reemplazar'}</span>
+                      </button>
+                      {!isAlreadyAdded && (
+                        <button
+                          className="excel-btn"
+                          style={{ fontSize: '10px', padding: '2px 6px', height: '22px' }}
+                          onClick={() => onApplySuggestedJoin(sug, false)}
+                          title="Une la tabla agregando los campos al final del reporte"
+                        >
+                          <Plus size={11} />
+                          <span>Al final</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -134,6 +171,16 @@ function JoinBuilderPanel({
             const leftTableObj = availableLeftTables.find(t => t.alias === j.onLeft.tableAlias) || availableLeftTables[0];
             const leftCols = leftTableObj ? (columnsCache[`${leftTableObj.schema}.${leftTableObj.name}`] || []) : [];
             const rightCols = columnsCache[`${j.table.schema}.${j.table.name}`] || [];
+
+            // Valor seleccionado por defecto para reemplazo
+            const currentReplaceState = replaceSelections[j.id] || {};
+            const effectiveBaseCol = currentReplaceState.baseCol || j.onLeft.column || (leftCols[0]?.name || '');
+            
+            // Sugerir la mejor columna descriptiva (no ID)
+            const defaultTargetCol = pickDescriptiveColumn(rightCols)?.name || '';
+            
+            const effectiveTargetCol = currentReplaceState.targetCol || defaultTargetCol;
+            const isBadgeActive = lastReplacedBadge === `${j.id}-${effectiveBaseCol}`;
 
             return (
               <div key={j.id} className="cr-join-card">
@@ -177,7 +224,7 @@ function JoinBuilderPanel({
                   <div className="cr-join-condition-block">
                     <span className="cr-on-title">{uxMode === 'simple' ? 'Unir por los campos coincidentes:' : 'Condición de enlace (ON):'}</span>
                     <div className="cr-join-condition-row">
-                      {/* Selector de Tabla Izquierda (Permite encadenar con base o joins anteriores) */}
+                      {/* Selector de Tabla Izquierda */}
                       <select
                         className="excel-select cr-on-table-select"
                         value={j.onLeft.tableAlias || (leftTableObj?.alias || 't0')}
@@ -205,7 +252,7 @@ function JoinBuilderPanel({
 
                       <span className="cr-equal-sign">=</span>
 
-                      {/* Columna Derecha de la tabla que se está uniendo */}
+                      {/* Columna Derecha de la tabla unida */}
                       <select
                         className="excel-select cr-on-col-select"
                         value={j.onRight.column}
@@ -218,6 +265,67 @@ function JoinBuilderPanel({
                       </select>
                     </div>
                   </div>
+
+                  {/* Herramienta de Sustitución Directa de Columna en Posición */}
+                  {leftCols.length > 0 && rightCols.length > 0 && (
+                    <div className="cr-join-replace-box">
+                      <div className="cr-join-replace-header">
+                        <ArrowRightLeft size={13} style={{ color: 'var(--excel-yellow)' }} />
+                        <span>Reemplazar dato en la misma columna del reporte:</span>
+                      </div>
+                      <div className="cr-join-replace-controls">
+                        <div className="cr-replace-field">
+                          <label>Reemplazar campo:</label>
+                          <select
+                            className="excel-select cr-replace-select"
+                            value={effectiveBaseCol}
+                            onChange={(e) => handleSetReplaceField(j.id, 'baseCol', e.target.value)}
+                            title="Selecciona la columna de la tabla base que deseas sustituir"
+                          >
+                            {leftCols.map(c => (
+                              <option key={c.name} value={c.name}>{leftTableObj?.name} ➔ {c.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="cr-replace-field">
+                          <label>Mostrar en su lugar:</label>
+                          <select
+                            className="excel-select cr-replace-select"
+                            value={effectiveTargetCol}
+                            onChange={(e) => handleSetReplaceField(j.id, 'targetCol', e.target.value)}
+                            title="Selecciona qué dato de la tabla unida deseas ver en esa columna"
+                          >
+                            {rightCols.map(c => (
+                              <option key={c.name} value={c.name}>{j.table.name} ➔ {c.name} ({c.type})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                          {isBadgeActive ? (
+                            <span style={{ fontSize: '11px', color: 'var(--excel-green-light)', fontWeight: 600 }}>
+                              ✓ ¡Columna reemplazada en su posición!
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                              Mantiene el orden exacto en la tabla.
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            className="excel-btn primary"
+                            style={{ fontSize: '11px', padding: '3px 10px', height: '26px' }}
+                            onClick={() => handleExecuteReplace(j, effectiveBaseCol, effectiveTargetCol)}
+                            title={`Reemplaza la columna ${effectiveBaseCol} por ${effectiveTargetCol} en su posición exacta`}
+                          >
+                            <RefreshCw size={12} />
+                            <span>Aplicar Reemplazo</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );

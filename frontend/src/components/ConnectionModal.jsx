@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { useModalA11y } from '../hooks/useModalA11y';
+import { loadSavedConnections, saveConnectionProfile, deleteSavedConnection } from '../utils/savedConnections';
 
 const ENGINES = [
   { id: 'SQLSERVER', name: 'SQL Server', icon: '🗄️', port: 1433, defaultDb: 'CL3530BD01MAP', color: '#107c41', placeholder: 'localhost o 192.168.1.100' },
@@ -39,15 +41,10 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
   const [testResult, setTestResult] = useState(null); // { success, message, latencyMs, databaseProduct, databaseVersion }
   const [isConnecting, setIsConnecting] = useState(false);
 
-  // Conexiones Guardadas
-  const [savedConnections, setSavedConnections] = useState(() => {
-    try {
-      const saved = localStorage.getItem('pushdb_saved_connections');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Conexiones Guardadas (nunca incluyen la contraseña, ver utils/savedConnections.js)
+  const [savedConnections, setSavedConnections] = useState(loadSavedConnections);
+
+  const modalRef = useModalA11y(isOpen, onClose);
 
   // Al cambiar motor, sugerir valores por defecto
   const handleSelectEngine = (engineId) => {
@@ -69,18 +66,18 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
     setDatabaseName(conn.databaseName || '');
     setSchema(conn.schema || '');
     setUsername(conn.username || '');
-    setPassword(conn.password || '');
+    setPassword('');
     setCustomJdbcUrl(conn.customJdbcUrl || '');
     setTestResult(null);
     setActiveTab('new');
-    info(`Perfil "${conn.profileName || 'Conexión'}" cargado`, 'Gestor de Conexiones');
+    info(`Perfil "${conn.profileName || 'Conexión'}" cargado. Por seguridad, la contraseña no se guarda: ingrésala de nuevo.`, 'Gestor de Conexiones');
   };
 
-  // Guardar conexión actual en favoritos
+  // Guardar conexión actual en favoritos (la contraseña NUNCA se persiste, ver
+  // utils/savedConnections.js: hay que volver a escribirla al cargar el perfil)
   const handleSaveCurrentProfile = () => {
     const name = profileName.trim() || `${engineType} - ${databaseName || host}`;
-    const newProfile = {
-      id: Date.now().toString(),
+    const updated = saveConnectionProfile(savedConnections, {
       profileName: name,
       engineType,
       host,
@@ -89,14 +86,10 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
       schema,
       username,
       password,
-      customJdbcUrl,
-      savedAt: new Date().toLocaleDateString()
-    };
-
-    const updated = [newProfile, ...savedConnections.filter(c => c.profileName !== name)];
+      customJdbcUrl
+    });
     setSavedConnections(updated);
-    localStorage.setItem('pushdb_saved_connections', JSON.stringify(updated));
-    success('Conexión guardada en favoritos', name);
+    success('Conexión guardada en favoritos (sin la contraseña, por seguridad)', name);
   };
 
   // Eliminar conexión guardada con confirmación
@@ -109,9 +102,7 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
       cancelText: 'Cancelar',
       type: 'danger',
       onConfirm: () => {
-        const updated = savedConnections.filter(c => c.id !== id);
-        setSavedConnections(updated);
-        localStorage.setItem('pushdb_saved_connections', JSON.stringify(updated));
+        setSavedConnections(deleteSavedConnection(savedConnections, id));
         info('Perfil de conexión eliminado', 'Gestor de Conexiones');
       }
     });
@@ -209,17 +200,25 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
 
   return (
     <div className="conn-modal-overlay" onClick={onClose}>
-      <div className="conn-modal-card" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={modalRef}
+        className="conn-modal-card"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="conn-modal-title"
+        tabIndex={-1}
+      >
         {/* Cabecera */}
         <div className="conn-modal-header">
           <div className="conn-header-title-area">
             <Database size={20} className="conn-header-icon" />
             <div>
-              <h3 className="conn-modal-title">Gestor de Conexiones de Base de Datos</h3>
+              <h3 className="conn-modal-title" id="conn-modal-title">Gestor de Conexiones de Base de Datos</h3>
               <p className="conn-modal-subtitle">Conecta en tiempo real a MySQL, PostgreSQL, Oracle, SQLite o SQL Server</p>
             </div>
           </div>
-          <button className="conn-close-btn" onClick={onClose} title="Cerrar ventana">
+          <button className="conn-close-btn" onClick={onClose} title="Cerrar ventana" aria-label="Cerrar ventana">
             <X size={18} />
           </button>
         </div>

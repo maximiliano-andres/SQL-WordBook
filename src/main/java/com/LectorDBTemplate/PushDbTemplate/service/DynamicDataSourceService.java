@@ -155,7 +155,7 @@ public class DynamicDataSourceService {
 
             return new TestResult(true, "Conexión exitosa a " + product, latency, product, version, driver);
         } catch (Exception e) {
-            log.error("Fallo en prueba de conexión hacia {}: {}", jdbcUrl, e.getMessage());
+            log.error("Fallo en prueba de conexión hacia {}: {}", sanitizeJdbcUrl(jdbcUrl), e.getMessage());
             return new TestResult(false, "Error de conexión: " + e.getMessage(), 0, null, null, null);
         }
     }
@@ -168,7 +168,7 @@ public class DynamicDataSourceService {
         String jdbcUrl = resolveJdbcUrl(config);
         String driverClass = resolveDriverClass(config);
 
-        log.info("Iniciando cambio dinámico de conexión hacia {}...", jdbcUrl);
+        log.info("Iniciando cambio dinámico de conexión hacia {}...", sanitizeJdbcUrl(jdbcUrl));
 
         HikariConfig hikariConfig = new HikariConfig();
         hikariConfig.setJdbcUrl(jdbcUrl);
@@ -198,7 +198,7 @@ public class DynamicDataSourceService {
                 log.info("Conexión verificada exitosamente: {} ({})", currentDialect.getDisplayName(), product);
             }
         } catch (Exception e) {
-            log.error("Error al inicializar nuevo pool de conexiones: {}", e.getMessage());
+            log.error("Error al inicializar nuevo pool de conexiones hacia {}: {}", sanitizeJdbcUrl(jdbcUrl), e.getMessage());
             return new ConnectResult(false, "No se pudo conectar: " + e.getMessage(), null);
         }
 
@@ -287,8 +287,12 @@ public class DynamicDataSourceService {
 
     private String sanitizeJdbcUrl(String url) {
         if (url == null) return "N/A";
-        return url.replaceAll("(?i)password=[^;]*", "password=******")
-                  .replaceAll("(?i)user=[^;]*", "user=******");
+        // Cubre tanto los parámetros de query/propiedades típicos (password=...;pwd=...) como
+        // credenciales embebidas en la forma userinfo de la URL (jdbc:postgresql://user:pass@host/db),
+        // ya que customJdbcUrl es texto libre ingresado por el usuario y puede traer cualquiera de los dos formatos.
+        return url.replaceAll("(?i)(password|pwd)=[^;&]*", "$1=******")
+                  .replaceAll("(?i)user(name)?=[^;&]*", "user$1=******")
+                  .replaceAll("://([^/@\\s]+):([^/@\\s]+)@", "://******:******@");
     }
 
     private String extractDatabaseName(String url) {

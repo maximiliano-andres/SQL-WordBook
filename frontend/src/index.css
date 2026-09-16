@@ -769,14 +769,6 @@ body {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.45);
 }
 
-.fk-inline-label {
-  font-size: 11px;
-  color: var(--text-secondary);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
 .fk-select {
   background-color: var(--excel-bg-active);
   border: 1px solid var(--excel-border);
@@ -787,10 +779,6 @@ body {
   border-radius: 4px;
   outline: none;
   max-width: 150px;
-}
-
-.fk-select:focus {
-  border-color: var(--excel-green);
 }
 
 .fk-action-btn {
@@ -951,7 +939,14 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* Formulario inline de FK (mejoras visuales del popover) */
+/* Formulario inline de FK (mejoras visuales del popover).
+   NOTA (auditoría, deuda de CSS pendiente): este bloque y el de arriba (.fk-inline-form,
+   .fk-select, .fk-action-btn y variantes, líneas ~761-813) están entrelazados vía !important
+   en vez de fusionados en una sola regla -este de aquí solo pisa background/border/padding/etc,
+   pero sigue dependiendo del bloque de arriba para display/cursor/color/font-family en varios
+   selectores-. Fusionarlos requiere revisar propiedad por propiedad con verificación visual
+   (no es un duplicado limpio y seguro de eliminar a ciegas); se deja documentado para una
+   limpieza dedicada en vez de arriesgar una regresión visual en este cambio. */
 .fk-inline-form {
   display: flex;
   background-color: var(--excel-bg-sidebar) !important;
@@ -2293,6 +2288,249 @@ body {
   font-size: 11px;
   flex-grow: 1;
   padding: 2px 6px;
+}
+
+/* ========================================================================= */
+/* --- GESTOR DE ORDEN Y SUSTITUCIÓN DE COLUMNAS (CR-COL-ORDER & REPLACER) --- */
+/* ========================================================================= */
+
+.cr-subnav-bar {
+  display: flex;
+  background-color: var(--excel-bg-app);
+  border-bottom: 1px solid var(--excel-border);
+  padding: 4px 8px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cr-subnav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cr-subnav-btn:hover {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.cr-subnav-btn.active {
+  background-color: var(--excel-bg-sidebar);
+  color: var(--excel-green-light);
+  border-color: var(--excel-border);
+  font-weight: 600;
+}
+
+.cr-col-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.cr-col-order-card {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.cr-col-order-card:hover {
+  border-color: rgba(16, 124, 65, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.cr-col-order-card.is-joined {
+  border-left: 3px solid #64b5f6;
+}
+
+.cr-col-order-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cr-col-order-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cr-col-order-badge {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+}
+
+.cr-col-order-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cr-col-order-origin {
+  font-size: 10px;
+  color: #64b5f6;
+  background-color: rgba(100, 181, 246, 0.12);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.cr-col-order-origin.base {
+  color: var(--excel-green-light);
+  background-color: rgba(16, 124, 65, 0.15);
+}
+
+.cr-col-order-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cr-col-btn {
+  padding: 2px 5px;
+  border: 1px solid var(--excel-border);
+  background-color: var(--excel-bg-sidebar);
+  color: var(--text-secondary);
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: all 0.12s ease;
+}
+
+.cr-col-btn:hover:not(:disabled) {
+  background-color: var(--excel-bg-active);
+  color: var(--text-primary);
+  border-color: var(--excel-green-light);
+}
+
+.cr-col-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.cr-col-btn.replace-trigger {
+  color: var(--excel-yellow);
+  font-size: 10.5px;
+  gap: 3px;
+  padding: 2px 6px;
+  font-weight: 500;
+}
+
+.cr-col-btn.replace-trigger:hover {
+  background-color: rgba(255, 213, 79, 0.12);
+  border-color: var(--excel-yellow);
+}
+
+.cr-col-btn.delete-col:hover {
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+}
+
+.cr-replace-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background-color: var(--excel-bg-sidebar);
+  border: 1px dashed rgba(255, 213, 79, 0.6);
+  border-radius: 5px;
+  margin-top: 4px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.cr-replace-popover-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--excel-yellow);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cr-replace-popover-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Caja de Reemplazo Rápido en la tarjeta de Cruce (Join) */
+.cr-join-replace-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background-color: rgba(16, 124, 65, 0.08);
+  border: 1px solid rgba(16, 124, 65, 0.3);
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-top: 6px;
+}
+
+.cr-join-replace-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--excel-green-light);
+}
+
+.cr-join-replace-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cr-replace-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.cr-replace-field label {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  min-width: 105px;
+}
+
+.cr-replace-select {
+  flex: 1;
+  height: 24px;
+  font-size: 11px;
 }
 
 /* Filters & Sorts Section */

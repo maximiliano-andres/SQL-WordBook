@@ -25,7 +25,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -50,6 +52,8 @@ class CustomReportServiceTest {
     private JdbcTemplate jdbcTemplate;
     @Mock
     private SchemaMetadataService schemaMetadataService;
+    @Mock
+    private JdbcTemplate appJdbcTemplate;
 
     private static final ColumnInfo[] FACTURAS_COLS = {
             new ColumnInfo("id", "INT", 10, false),
@@ -69,7 +73,7 @@ class CustomReportServiceTest {
         when(schemaMetadataService.isTableValid("dbo", "Clientes")).thenReturn(true);
         when(schemaMetadataService.getColumns("dbo", "Facturas")).thenReturn(List.of(FACTURAS_COLS));
         when(schemaMetadataService.getColumns("dbo", "Clientes")).thenReturn(List.of(CLIENTES_COLS));
-        return new CustomReportService(dynamicDataSourceService, schemaMetadataService);
+        return new CustomReportService(dynamicDataSourceService, schemaMetadataService, appJdbcTemplate);
     }
 
     private void stubEmptyResult() {
@@ -306,5 +310,47 @@ class CustomReportServiceTest {
         assertThat(result.totalRows()).isEqualTo(42L);
         assertThat(result.currentPage()).isEqualTo(1);
         assertThat(result.totalPages()).isEqualTo(3); // ceil(42 / 15)
+    }
+
+    // --- Persistencia de plantillas: siempre contra la BD fija de la app, nunca contra la
+    // conexión dinámica de negocio (ver auditoría, hallazgo crítico: antes de este fix, las
+    // plantillas guardadas mientras el usuario exploraba, por ejemplo, Postgres o Oracle se
+    // perdían silenciosamente porque push_custom_reports solo existe en la BD propia de la app).
+
+    @Test
+    void saveReportTemplate_persistsAgainstAppJdbcTemplate_neverAgainstDynamicConnection() {
+        CustomReportService service = newService();
+        when(appJdbcTemplate.queryForObject(anyString(), eq(Integer.class), anyString())).thenReturn(0);
+
+        var template = new CustomReportService.ReportTemplate(null, "Mi Reporte", "desc", "{}", null, null);
+        var saved = service.saveReportTemplate(template);
+
+        assertThat(saved.id()).isNotBlank();
+        assertThat(saved.name()).isEqualTo("Mi Reporte");
+        verify(appJdbcTemplate).update(anyString(), anyString(), eq("Mi Reporte"), eq("desc"), eq("{}"));
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void getReportTemplates_readsFromAppJdbcTemplate_neverFromDynamicConnection() {
+        CustomReportService service = newService();
+        when(appJdbcTemplate.query(anyString(), any(org.springframework.jdbc.core.RowMapper.class)))
+                .thenReturn(List.of(new CustomReportService.ReportTemplate("1", "Reporte", null, "{}", "2024-01-01T00:00:00", "2024-01-01T00:00:00")));
+
+        List<CustomReportService.ReportTemplate> templates = service.getReportTemplates();
+
+        assertThat(templates).hasSize(1);
+        assertThat(templates.get(0).name()).isEqualTo("Reporte");
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void deleteReportTemplate_deletesAgainstAppJdbcTemplate_neverAgainstDynamicConnection() {
+        CustomReportService service = newService();
+
+        service.deleteReportTemplate("abc-123");
+
+        verify(appJdbcTemplate).update(anyString(), eq("abc-123"));
+        verifyNoInteractions(jdbcTemplate);
     }
 }

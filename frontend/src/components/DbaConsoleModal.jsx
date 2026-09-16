@@ -1,15 +1,26 @@
 import { Server, X } from 'lucide-react';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 // Modal de la "Consola de Diagnóstico DBA": comportamiento visual idéntico al
 // que vivía inline en App.jsx, ahora recibiendo dbInfo/onClose como props.
 export default function DbaConsoleModal({ dbInfo, onClose }) {
+  const modalRef = useModalA11y(!!dbInfo, onClose);
+
   if (!dbInfo) return null;
 
   return (
     <div className="dba-modal-overlay" onClick={onClose}>
-      <div className="dba-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={modalRef}
+        className="dba-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dba-modal-title"
+        tabIndex={-1}
+      >
         <div className="dba-modal-header">
-          <h3 className="dba-modal-title">
+          <h3 className="dba-modal-title" id="dba-modal-title">
             <Server size={18} className="excel-icon" />
             Consola de Diagnóstico de Base de Datos <span>DBA</span>
           </h3>
@@ -17,6 +28,7 @@ export default function DbaConsoleModal({ dbInfo, onClose }) {
             className="dba-close-btn"
             onClick={onClose}
             title="Cerrar consola"
+            aria-label="Cerrar consola"
           >
             <X size={18} />
           </button>

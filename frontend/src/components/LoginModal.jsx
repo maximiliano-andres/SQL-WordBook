@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, User, Eye, EyeOff, ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 export default function LoginModal() {
   const { showLoginModal, setShowLoginModal, login, isAuthenticated } = useAuth();
@@ -10,9 +11,12 @@ export default function LoginModal() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Escape solo cierra el modal cuando ya hay una sesión activa (re-login opcional); si el
+  // login es obligatorio (usuario aún no autenticado) no hay una forma válida de descartarlo.
+  const modalRef = useModalA11y(showLoginModal, isAuthenticated ? () => setShowLoginModal(false) : null);
 
   if (!showLoginModal) return null;
 
@@ -27,7 +31,7 @@ export default function LoginModal() {
     setErrorMessage('');
 
     try {
-      await login(username, password, remember);
+      await login(username, password);
       success('Sesión iniciada correctamente', `Bienvenido, ${username.trim()}`);
     } catch (err) {
       setErrorMessage(err.message || 'Credenciales no válidas. Verifique su usuario y contraseña.');
@@ -38,7 +42,15 @@ export default function LoginModal() {
 
   return (
     <div className="login-modal-overlay">
-      <div className="login-modal-card" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={modalRef}
+        className="login-modal-card"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="login-modal-title"
+        tabIndex={-1}
+      >
         {/* Encabezado con Logo y Branding */}
         <div className="login-modal-header">
           <div className="login-logo-wrapper">
@@ -47,7 +59,7 @@ export default function LoginModal() {
               <ShieldCheck size={16} />
             </div>
           </div>
-          <h2 className="login-title">Acceso al Sistema</h2>
+          <h2 className="login-title" id="login-modal-title">Acceso al Sistema</h2>
           <p className="login-subtitle">SQL & Multi-Database Workbook</p>
         </div>
 
@@ -109,18 +121,8 @@ export default function LoginModal() {
             </div>
           </div>
 
-          <div className="login-options-row">
-            <label className="login-remember-label">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-                className="login-checkbox"
-                disabled={isLoading}
-              />
-              <span>Recordar sesión en este equipo</span>
-            </label>
-            {isAuthenticated && (
+          {isAuthenticated && (
+            <div className="login-options-row">
               <button
                 type="button"
                 className="login-cancel-btn"
@@ -129,8 +131,8 @@ export default function LoginModal() {
               >
                 Cancelar
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -153,7 +155,7 @@ export default function LoginModal() {
 
         <div className="login-modal-footer">
           <p className="login-footer-text">
-            Protegido con autenticación de aplicación y cifrado de credenciales.
+            Protegido con autenticación de sesión del servidor.
           </p>
         </div>
       </div>
