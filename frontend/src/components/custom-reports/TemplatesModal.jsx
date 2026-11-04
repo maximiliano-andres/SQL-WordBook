@@ -19,45 +19,44 @@ function TemplatesModal({
         ref={modalRef}
         className="modal-card"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '650px' }}
+        style={{ '--modal-max-w': '650px' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="templates-modal-title"
         tabIndex={-1}
       >
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FolderOpen size={18} style={{ color: 'var(--excel-green-light)' }} />
+          <div className="modal-title-group">
+            <FolderOpen size={18} className="excel-icon" />
             <h3 id="templates-modal-title">Plantillas de Reportes Guardadas</h3>
           </div>
           <button className="modal-close-btn" onClick={onClose} aria-label="Cerrar"><X size={16} /></button>
         </div>
-        <div className="modal-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+        <div className="modal-body">
           {templates.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+            <div className="modal-empty">
               No hay plantillas guardadas aún. Crea un reporte y guárdalo para reutilizarlo aquí.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="cr-template-list">
               {templates.map(tpl => (
                 <div
                   key={tpl.id}
                   className="cr-template-item"
                   onClick={() => onLoadTemplate(tpl)}
                 >
-                  <div style={{ flexGrow: 1 }}>
-                    <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', margin: 0 }}>{tpl.name}</h4>
+                  <div className="cr-template-info">
+                    <h4 className="cr-template-name">{tpl.name}</h4>
                     {tpl.description && (
-                      <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', margin: '3px 0 0 0' }}>{tpl.description}</p>
+                      <p className="cr-template-desc">{tpl.description}</p>
                     )}
-                    <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'inline-block' }}>
+                    <span className="cr-template-date">
                       Actualizado: {tpl.updatedAt ? new Date(tpl.updatedAt).toLocaleString() : 'N/A'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <div className="cr-template-actions">
                     <button
-                      className="excel-btn primary"
-                      style={{ fontSize: '11px', padding: '3px 10px' }}
+                      className="excel-btn primary excel-btn--compact"
                       onClick={(e) => {
                         e.stopPropagation();
                         onLoadTemplate(tpl);
@@ -69,6 +68,7 @@ function TemplatesModal({
                       className="cr-icon-btn danger"
                       onClick={(e) => onDeleteTemplate(tpl.id, e)}
                       title="Eliminar plantilla"
+                      aria-label="Eliminar plantilla"
                     >
                       <Trash2 size={13} />
                     </button>

@@ -48,15 +48,7 @@ function ReportResultsGrid({
             Página <strong>{page}</strong> de <strong>{totalPages || 1}</strong>
           </span>
           {isDistinct && (
-            <span
-              className="cr-stat-pill"
-              style={{
-                backgroundColor: 'rgba(16, 124, 65, 0.2)',
-                color: 'var(--excel-green-light)',
-                borderColor: 'rgba(16, 124, 65, 0.4)',
-                fontWeight: 600
-              }}
-            >
+            <span className="cr-stat-pill cr-stat-pill--accent">
               ✨ Sin Duplicados
             </span>
           )}
@@ -68,18 +60,10 @@ function ReportResultsGrid({
             className={`excel-btn ${isDistinct ? 'primary' : ''}`}
             onClick={onToggleDistinct}
             disabled={isExecuting}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              backgroundColor: isDistinct ? 'var(--excel-green)' : 'var(--excel-bg-app)',
-              borderColor: isDistinct ? 'var(--excel-green)' : 'var(--excel-border)',
-              color: isDistinct ? '#ffffff' : 'var(--text-primary)',
-              fontWeight: isDistinct ? 600 : 500
-            }}
+            aria-pressed={isDistinct}
             title={isDistinct ? 'Filtrado de duplicados activo. Haz clic para restaurar todas las filas.' : 'Eliminar todas las filas duplicadas de este reporte.'}
           >
-            <Sparkles size={14} style={{ color: isDistinct ? '#ffffff' : 'var(--excel-yellow)' }} />
+            <Sparkles size={14} className={isDistinct ? '' : 'text-yellow'} />
             <span>{isDistinct ? '✓ Sin Duplicados' : '🧹 Eliminar Duplicados'}</span>
           </button>
 
@@ -141,12 +125,11 @@ function ReportResultsGrid({
       <div className="cr-spreadsheet-container">
         {reportData.length === 0 ? (
           <div className="cr-empty-results">
-            <FileSpreadsheet size={36} style={{ color: 'var(--text-muted)' }} />
+            <FileSpreadsheet size={36} className="text-muted" />
             <p>No hay datos disponibles para mostrar.</p>
             <button
               className="excel-btn primary"
               onClick={() => onExecuteQuery(1, limit)}
-              style={{ marginTop: '12px' }}
             >
               <Play size={14} />
               <span>Ejecutar Consulta</span>
@@ -159,7 +142,11 @@ function ReportResultsGrid({
                 <tr>
                   <th className="cr-th-row-num">#</th>
                   {reportResultColumns.map(col => (
-                    <th key={col.label} title={`${col.tableAlias}.${col.column}`}>
+                    <th
+                      key={col.label}
+                      className={typeof reportData[0]?.[col.label] === 'number' ? 'th-numeric' : undefined}
+                      title={`${col.tableAlias}.${col.column}`}
+                    >
                       {col.label}
                     </th>
                   ))}
@@ -172,9 +159,14 @@ function ReportResultsGrid({
                     {reportResultColumns.map(col => {
                       const val = row[col.label];
                       const isNull = val === null || val === undefined;
+                      // Solo presentación: cifras alineadas a la derecha y, en Modo Fácil,
+                      // los vacíos se muestran como "—" en lugar de la etiqueta técnica NULL.
+                      const cellClass = isNull ? 'cr-cell-null' : (typeof val === 'number' ? 'cell-numeric' : '');
                       return (
-                        <td key={col.label} className={isNull ? 'cr-cell-null' : ''}>
-                          {isNull ? <span className="null-tag">NULL</span> : String(val)}
+                        <td key={col.label} className={cellClass} title={isNull && uxMode === 'simple' ? 'Sin dato' : undefined}>
+                          {isNull
+                            ? (uxMode === 'simple' ? '—' : <span className="null-tag">NULL</span>)
+                            : String(val)}
                         </td>
                       );
                     })}
@@ -188,9 +180,10 @@ function ReportResultsGrid({
 
       {/* Paginación Inferior */}
       <div className="cr-pagination-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Mostrar:</span>
+        <div className="cr-pagination-group">
+          <label className="cr-pagination-label" htmlFor="cr-page-size">Mostrar:</label>
           <select
+            id="cr-page-size"
             className="excel-select"
             value={limit}
             onChange={(e) => {
@@ -208,28 +201,30 @@ function ReportResultsGrid({
 
         <div className="cr-pagination-range">
           <span>
-            Mostrando registros <strong>{totalRows === 0 ? 0 : ((page - 1) * limit) + 1}</strong> - <strong>{Math.min(page * limit, totalRows)}</strong> de un total de <strong style={{ color: 'var(--excel-green-light)' }}>{totalRows.toLocaleString()}</strong> filas
+            Mostrando registros <strong>{totalRows === 0 ? 0 : ((page - 1) * limit) + 1}</strong> - <strong>{Math.min(page * limit, totalRows)}</strong> de un total de <strong className="text-accent">{totalRows.toLocaleString()}</strong> filas
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="cr-pagination-group cr-pagination-pager">
           <button
             className="excel-btn"
             onClick={() => onExecuteQuery(page - 1, limit)}
             disabled={page <= 1 || isExecuting}
+            aria-label="Página anterior"
           >
             <ChevronLeft size={16} />
-            <span>Anterior</span>
+            <span className="btn-label">Anterior</span>
           </button>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          <span className="cr-pagination-label">
             Pág. <strong>{page}</strong> de <strong>{totalPages || 1}</strong>
           </span>
           <button
             className="excel-btn"
             onClick={() => onExecuteQuery(page + 1, limit)}
             disabled={page >= totalPages || isExecuting}
+            aria-label="Página siguiente"
           >
-            <span>Siguiente</span>
+            <span className="btn-label">Siguiente</span>
             <ChevronRight size={16} />
           </button>
         </div>

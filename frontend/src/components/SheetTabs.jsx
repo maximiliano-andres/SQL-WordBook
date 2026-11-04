@@ -16,20 +16,20 @@ export default function SheetTabs({
   return (
     <div className="worksheet-tabs-bar">
       {/* Controles de Navegación de Pestañas (Estilo Excel) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+      <div className="sheet-nav">
         <button 
-          className="excel-btn" 
-          style={{ padding: '4px 6px', border: 'none', height: '100%' }}
+          className="excel-btn sheet-nav-btn"
           title="Primera pestaña"
+          aria-label="Ir a la primera hoja"
           disabled={filteredTables.length === 0}
           onClick={() => filteredTables.length > 0 && onSelectTable(filteredTables[0])}
         >
           <ChevronLeft size={14} strokeWidth={3} />
         </button>
         <button 
-          className="excel-btn" 
-          style={{ padding: '4px 6px', border: 'none', height: '100%' }}
+          className="excel-btn sheet-nav-btn"
           title="Última pestaña"
+          aria-label="Ir a la última hoja"
           disabled={filteredTables.length === 0}
           onClick={() => filteredTables.length > 0 && onSelectTable(filteredTables[filteredTables.length - 1])}
         >
@@ -40,7 +40,7 @@ export default function SheetTabs({
       {/* Listado de Hojas (Tablas) */}
       <div className="tabs-wrapper">
         {filteredTables.length === 0 ? (
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', paddingLeft: '10px', fontStyle: 'italic' }}>
+          <span className="sheet-tabs-empty">
             No se encontraron tablas
           </span>
         ) : (
@@ -51,6 +51,8 @@ export default function SheetTabs({
                 key={`${table.schema}.${table.name}`}
                 className={`sheet-tab ${isActive ? 'active' : ''}`}
                 onClick={() => onSelectTable(table)}
+                aria-current={isActive ? 'true' : undefined}
+                title={`${table.schema}.${table.name}`}
               >
                 <FileSpreadsheet className="sheet-icon" />
                 <span>
@@ -70,7 +72,8 @@ export default function SheetTabs({
         />
         <input 
           type="text" 
-          placeholder="Buscar..."
+          placeholder="Buscar hoja..."
+          aria-label="Buscar hoja o tabla"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="sheet-search-input"

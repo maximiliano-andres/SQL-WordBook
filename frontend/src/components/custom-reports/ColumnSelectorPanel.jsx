@@ -70,7 +70,7 @@ function ColumnSelectorPanel({
 
       {participatingTables.length === 0 ? (
         <div className="cr-empty-placeholder">
-          <Info size={24} style={{ color: 'var(--text-muted)' }} />
+          <Info size={24} className="text-muted" />
           <p>{uxMode === 'simple' ? 'Elige primero tu tabla de inicio en el Paso 1.' : 'Selecciona primero una tabla principal en el paso 1.'}</p>
         </div>
       ) : (
@@ -106,18 +106,17 @@ function ColumnSelectorPanel({
                   value={columnSearchQuery}
                   onChange={(e) => setColumnSearchQuery(e.target.value)}
                 />
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                <span className="cr-filter-count">
                   {selectedColumns.length} campos activos
                 </span>
               </div>
 
               <div className="cr-col-order-list">
                 {selectedColumns.length === 0 ? (
-                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                  <div className="cr-empty-inline">
                     <p>No has seleccionado columnas para el reporte.</p>
                     <button
                       className="excel-btn primary"
-                      style={{ marginTop: '8px' }}
                       onClick={() => setPanelTab('tables')}
                     >
                       + Seleccionar Columnas
@@ -153,6 +152,7 @@ function ColumnSelectorPanel({
                               className="cr-col-btn"
                               onClick={() => onMoveColumn && onMoveColumn(index, 'up')}
                               disabled={index === 0}
+                              aria-label="Subir posición"
                               title="Subir posición en el reporte (Mover hacia la izquierda)"
                             >
                               <ArrowUp size={12} />
@@ -161,6 +161,7 @@ function ColumnSelectorPanel({
                               className="cr-col-btn"
                               onClick={() => onMoveColumn && onMoveColumn(index, 'down')}
                               disabled={index === selectedColumns.length - 1}
+                              aria-label="Bajar posición"
                               title="Bajar posición en el reporte (Mover hacia la derecha)"
                             >
                               <ArrowDown size={12} />
@@ -171,12 +172,13 @@ function ColumnSelectorPanel({
                               title="Sustituir este campo en su misma posición por el dato de una tabla cruzada"
                             >
                               <RefreshCw size={11} />
-                              <span>Reemplazar</span>
+                              <span className="btn-label">Reemplazar</span>
                             </button>
                             <button
                               className="cr-col-btn delete-col"
                               onClick={() => onRemoveSelectedColumn && onRemoveSelectedColumn(index)}
                               title="Quitar esta columna del reporte"
+                              aria-label="Quitar columna"
                             >
                               <Trash2 size={11} />
                             </button>
@@ -184,8 +186,8 @@ function ColumnSelectorPanel({
                         </div>
 
                         {/* Input para renombrar encabezado de columna */}
-                        <div className="cr-col-alias-box" style={{ paddingLeft: 0, marginTop: '2px' }}>
-                          <span className="cr-col-as-text" style={{ fontSize: '10px' }}>Encabezado Excel:</span>
+                        <div className="cr-col-alias-box cr-col-alias-box--flush">
+                          <span className="cr-col-as-text">Encabezado Excel:</span>
                           <input
                             type="text"
                             className="excel-input cr-alias-input"
@@ -206,8 +208,7 @@ function ColumnSelectorPanel({
                             <div className="cr-replace-popover-row">
                               {/* Selector de Tabla */}
                               <select
-                                className="excel-select"
-                                style={{ flex: 1, height: '24px', fontSize: '11px' }}
+                                className="excel-select cr-replace-select"
                                 value={replaceTargetTableAlias}
                                 onChange={(e) => handleTableChangeInReplace(e.target.value)}
                               >
@@ -220,8 +221,7 @@ function ColumnSelectorPanel({
 
                               {/* Selector de Columna de esa tabla */}
                               <select
-                                className="excel-select"
-                                style={{ flex: 1, height: '24px', fontSize: '11px' }}
+                                className="excel-select cr-replace-select"
                                 value={replaceTargetCol}
                                 onChange={(e) => setReplaceTargetCol(e.target.value)}
                               >
@@ -236,8 +236,7 @@ function ColumnSelectorPanel({
 
                               <button
                                 type="button"
-                                className="excel-btn primary"
-                                style={{ height: '24px', padding: '0 8px', fontSize: '10.5px' }}
+                                className="excel-btn primary excel-btn--compact"
                                 onClick={() => handleConfirmReplace(index)}
                                 title="Confirmar reemplazo de columna"
                               >
@@ -292,7 +291,7 @@ function ColumnSelectorPanel({
                   value={columnSearchQuery}
                   onChange={(e) => setColumnSearchQuery(e.target.value)}
                 />
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div className="cr-card-actions">
                   <button
                     className="excel-btn excel-btn--xs"
                     onClick={() => onSelectAllColumnsOfTable(activeColumnTable)}
@@ -317,7 +316,7 @@ function ColumnSelectorPanel({
                   const filtered = cols.filter(c => c.name.toLowerCase().includes(columnSearchQuery.toLowerCase()));
 
                   if (filtered.length === 0) {
-                    return <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '12px' }}>No se encontraron columnas.</div>;
+                    return <div className="cr-empty-inline">No se encontraron columnas.</div>;
                   }
 
                   return filtered.map(col => {
@@ -331,7 +330,6 @@ function ColumnSelectorPanel({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => onToggleColumn(curTable.alias, col.name)}
-                            style={{ accentColor: 'var(--excel-green-light)', cursor: 'pointer' }}
                           />
                           <span className="cr-col-orig-name">{col.name}</span>
                           <span className="cr-col-type-tag">{col.type}</span>

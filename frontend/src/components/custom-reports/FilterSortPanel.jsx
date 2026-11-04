@@ -24,7 +24,7 @@ function FilterSortPanel({
           <span className="cr-step-number">3</span>
           <h3>{uxMode === 'simple' ? 'Filtrar y Ordenar Datos' : 'Filtros y Ordenamiento'}</h3>
         </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div className="cr-card-actions">
           <button
             className="excel-btn excel-btn--compact"
             onClick={onAddFilter}
@@ -48,7 +48,7 @@ function FilterSortPanel({
       <div className="cr-filters-section">
         <label className="cr-label"><strong>{uxMode === 'simple' ? 'Condiciones de Búsqueda:' : `Condiciones de Filtrado (${filters.length}):`}</strong></label>
         {filters.length === 0 ? (
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+          <div className="cr-muted-text">
             {uxMode === 'simple' ? 'Sin filtros (se traerán todos los registros). Haz clic en "+ Filtrar" para buscar por fecha, empresa, rut, etc.' : 'Sin filtros (se consultarán todas las filas). Haz clic en "+ Filtro" para acotar datos.'}
           </div>
         ) : (
@@ -125,6 +125,7 @@ function FilterSortPanel({
                     <button
                       className="cr-icon-btn danger"
                       onClick={() => onDeleteFilter(f.id)}
+                      aria-label="Eliminar condición"
                       title="Eliminar condición"
                     >
                       <Trash2 size={13} />
@@ -141,7 +142,7 @@ function FilterSortPanel({
       <div className="cr-sorts-section">
         <label className="cr-label"><strong>Ordenamiento de Resultados ({sorts.length}):</strong></label>
         {sorts.length === 0 ? (
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+          <div className="cr-muted-text">
             Orden por defecto del motor. Haz clic en <strong>"+ Orden"</strong> para ordenar por columnas.
           </div>
         ) : (
@@ -184,6 +185,7 @@ function FilterSortPanel({
                   <button
                     className="cr-icon-btn danger"
                     onClick={() => onDeleteSort(s.id)}
+                    aria-label="Eliminar criterio de orden"
                     title="Eliminar criterio de orden"
                   >
                     <Trash2 size={13} />

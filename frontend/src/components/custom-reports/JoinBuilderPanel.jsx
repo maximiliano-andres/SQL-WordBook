@@ -109,7 +109,7 @@ function JoinBuilderPanel({
             <span>Relaciones FK detectadas ({suggestedJoins.length})</span>
           </div>
           {isLoadingSuggestions ? (
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Analizando claves foráneas...</div>
+            <div className="cr-muted-text">Analizando claves foráneas...</div>
           ) : suggestedJoins.length > 0 ? (
             <div className="cr-suggestions-list">
               {suggestedJoins.map((sug, idx) => {
@@ -124,10 +124,9 @@ function JoinBuilderPanel({
                         <strong>[{sug.originTableName || baseTable.name}]</strong> ➔ {sug.description}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div className="cr-sug-actions">
                       <button
-                        className="excel-btn primary"
-                        style={{ fontSize: '10px', padding: '2px 7px', height: '22px' }}
+                        className="excel-btn primary excel-btn--xs"
                         onClick={() => onApplySuggestedJoin(sug, true)}
                         disabled={isAlreadyAdded}
                         title="Une la tabla y reemplaza el ID original en su misma posición por el dato descriptivo"
@@ -137,8 +136,7 @@ function JoinBuilderPanel({
                       </button>
                       {!isAlreadyAdded && (
                         <button
-                          className="excel-btn"
-                          style={{ fontSize: '10px', padding: '2px 6px', height: '22px' }}
+                          className="excel-btn excel-btn--xs"
                           onClick={() => onApplySuggestedJoin(sug, false)}
                           title="Une la tabla agregando los campos al final del reporte"
                         >
@@ -152,7 +150,7 @@ function JoinBuilderPanel({
               })}
             </div>
           ) : (
-            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+            <div className="cr-muted-text">
               No se detectaron FKs directas. Puedes usar el botón <strong>"+ Cruce Manual"</strong> arriba.
             </div>
           )}
@@ -162,8 +160,8 @@ function JoinBuilderPanel({
       {/* Lista de Cruces Configurados */}
       {joins.length > 0 && (
         <div className="cr-joins-list">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <label className="cr-label" style={{ margin: 0 }}><strong>Cruces configurados ({joins.length}):</strong></label>
+          <div>
+            <label className="cr-label cr-label--flush"><strong>Cruces configurados ({joins.length}):</strong></label>
           </div>
 
           {joins.map((j, idx) => {
@@ -198,6 +196,7 @@ function JoinBuilderPanel({
                   </select>
                   <button
                     className="cr-icon-btn danger"
+                    aria-label="Eliminar este cruce"
                     onClick={() => onDeleteJoin(j.id)}
                     title="Eliminar este cruce"
                   >
@@ -302,20 +301,19 @@ function JoinBuilderPanel({
                           </select>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                        <div className="cr-replace-footer">
                           {isBadgeActive ? (
-                            <span style={{ fontSize: '11px', color: 'var(--excel-green-light)', fontWeight: 600 }}>
+                            <span className="cr-replace-done">
                               ✓ ¡Columna reemplazada en su posición!
                             </span>
                           ) : (
-                            <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                            <span className="cr-muted-text">
                               Mantiene el orden exacto en la tabla.
                             </span>
                           )}
                           <button
                             type="button"
-                            className="excel-btn primary"
-                            style={{ fontSize: '11px', padding: '3px 10px', height: '26px' }}
+                            className="excel-btn primary excel-btn--compact"
                             onClick={() => handleExecuteReplace(j, effectiveBaseCol, effectiveTargetCol)}
                             title={`Reemplaza la columna ${effectiveBaseCol} por ${effectiveTargetCol} en su posición exacta`}
                           >
@@ -333,18 +331,7 @@ function JoinBuilderPanel({
 
           {/* Botón para agregar más cruces */}
           <button
-            className="excel-btn"
-            style={{
-              width: '100%',
-              padding: '8px',
-              marginTop: '4px',
-              justifyContent: 'center',
-              backgroundColor: 'rgba(16, 124, 65, 0.08)',
-              borderColor: 'var(--excel-green)',
-              color: 'var(--excel-green-light)',
-              fontWeight: 600,
-              gap: '6px'
-            }}
+            className="excel-btn cr-add-join-btn"
             onClick={onAddManualJoin}
             disabled={!baseTable}
           >

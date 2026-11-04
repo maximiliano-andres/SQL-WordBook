@@ -16,8 +16,8 @@ export default function StatusBar({
         <span>Listo</span>
         {activeTable && (
           <>
-            <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>|</span>
-            <span>
+            <span className="status-sep status-hide-sm">|</span>
+            <span className="status-hide-sm">
               Hoja Activa: <strong>{activeTable.schema}.{activeTable.name}</strong>
             </span>
           </>
@@ -32,15 +32,15 @@ export default function StatusBar({
             </span>
             {responseTime !== null && (
               <>
-                <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>|</span>
-                <span>
+                <span className="status-sep status-hide-sm">|</span>
+                <span className="status-hide-sm">
                   Tiempo de Consulta: <strong className="status-metric">{responseTime} ms</strong>
                 </span>
               </>
             )}
           </>
         )}
-        <span>Modo: Consulta Segura</span>
+        <span className="status-hide-md">Modo: Consulta Segura</span>
       </div>
     </footer>
   );

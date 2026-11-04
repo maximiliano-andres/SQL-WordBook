@@ -102,6 +102,7 @@ export function ToastProvider({ children }) {
               </div>
               <button
                 className="toast-close-btn"
+                aria-label="Cerrar notificación"
                 onClick={() => removeToast(toast.id)}
                 title="Cerrar notificación"
               >
@@ -118,33 +119,28 @@ export function ToastProvider({ children }) {
           <div
             className="modal-card confirm-modal-card"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '440px' }}
+            role="alertdialog"
+            aria-modal="true"
           >
             <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <HelpCircle size={18} style={{ color: 'var(--excel-green-light)' }} />
+              <div className="modal-title-group">
+                <HelpCircle size={18} className="excel-icon" />
                 <h3>{confirmModal.title}</h3>
               </div>
-              <button className="modal-close" onClick={confirmModal.onCancel}>✕</button>
+              <button className="modal-close" onClick={confirmModal.onCancel} aria-label="Cerrar">✕</button>
             </div>
             <div className="modal-body">
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              <p className="modal-message">
                 {confirmModal.message}
               </p>
             </div>
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            <div className="modal-footer">
               <button className="excel-btn" onClick={confirmModal.onCancel}>
                 {confirmModal.cancelText}
               </button>
               <button
                 className={`excel-btn ${confirmModal.type === 'danger' ? 'danger-btn' : 'primary'}`}
                 onClick={confirmModal.onConfirm}
-                style={{
-                  backgroundColor: confirmModal.type === 'danger' ? '#d9534f' : 'var(--excel-green)',
-                  borderColor: confirmModal.type === 'danger' ? '#d9534f' : 'var(--excel-green)',
-                  color: '#ffffff',
-                  fontWeight: 600
-                }}
               >
                 {confirmModal.confirmText}
               </button>

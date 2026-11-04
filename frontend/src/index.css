@@ -1,15 +1,15 @@
 /* CSS Variable Definition - High Contrast Excel-Like Corporate Theme */
 :root {
-  --excel-bg-app: #080b11;
-  --excel-bg-sidebar: #0e121b;
-  --excel-bg-ribbon: #121824;
-  --excel-bg-header: #1a2233;
-  --excel-bg-active: #222d42;
-  --excel-bg-row-num: #131926;
+  --excel-bg-app: #0a0e15;
+  --excel-bg-sidebar: #0f141e;
+  --excel-bg-ribbon: #0f141e;
+  --excel-bg-header: #141b28;
+  --excel-bg-active: #1b2435;
+  --excel-bg-row-num: #0f141e;
   
-  --excel-border: #2b364d;
+  --excel-border: #242e42;
   --excel-border-active: #107c41; /* Microsoft Excel Corporate Green */
-  --excel-border-grid: #1e2638;
+  --excel-border-grid: #19202e;
   
   --excel-green: #107c41;
   --excel-green-hover: #169e53;
@@ -17,14 +17,45 @@
   --excel-green-glow: rgba(16, 124, 65, 0.25);
   
   --text-primary: #ffffff;
-  --text-secondary: #90a1c1;
-  --text-muted: #5a6b8c;
+  --text-secondary: #9fb0cb;
+  --text-muted: #6d7f9f;
   --text-green: #21a366;
 
   /* Acentos de advertencia/atención reutilizados en la Consola DBA, el Ribbon
      y la Guía de Uso (antes hexadecimales sueltos repetidos en varios JSX) */
   --excel-amber: #ffb74d;
   --excel-yellow: #ffd54f;
+
+  --error-color: #ef4444;
+
+  /* Sistema de diseño: escalas únicas reutilizadas por todos los módulos */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --gutter: clamp(10px, 1.6vw, 18px);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --fs-2xs: 10.5px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: clamp(15px, 1.2vw + 10px, 18px);
+
+  --control-h: 32px;
+  --control-h-sm: 28px;
+  --focus-ring: 0 0 0 2px rgba(33, 163, 102, 0.45);
+  --surface-raised: #121925;
+  --text-body: #e4eaf4;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
 
   --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
@@ -39,9 +70,7 @@
 
 html, body, #root {
   height: 100%;
-  height: 100dvh;
   width: 100%;
-  width: 100vw;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -78,10 +107,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  height: 100dvh;
   width: 100%;
-  width: 100vw;
-  max-width: 100vw;
+  min-width: 0;
   background-color: var(--excel-bg-app);
   overflow: hidden;
   position: relative;
@@ -102,8 +129,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  min-height: 52px;
+  padding: 8px 16px;
+  background-color: var(--excel-bg-sidebar);
+  border-bottom: 1px solid var(--excel-border);
 }
 
 .excel-logo-area {
@@ -119,16 +148,16 @@ body {
 }
 
 .excel-logo {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
 }
 
 .app-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
-  color: var(--text-secondary);
-  letter-spacing: 0.5px;
+  color: #ffffff;
+  letter-spacing: -0.2px;
 }
 
 .app-title span {
@@ -162,42 +191,36 @@ body {
 .ribbon-tabs {
   display: flex;
   padding: 0 16px;
-  gap: 2px;
+  gap: 4px;
+  border-bottom: 1px solid var(--excel-border);
 }
 
 .ribbon-tab {
+  position: relative;
   background: none;
   border: none;
   color: var(--text-secondary);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
-  padding: 8px 16px;
+  padding: 9px 12px;
   cursor: pointer;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
-  margin-top: 4px;
-  border: 1px solid transparent;
-  border-bottom: none;
-  transition: all 0.15s;
+  transition: color 0.15s;
 }
 
 .ribbon-tab:hover {
-  background-color: rgba(255, 255, 255, 0.03);
   color: var(--text-primary);
 }
 
 .ribbon-tab.active {
-  background-color: var(--excel-bg-header);
-  border-color: var(--excel-border);
-  color: var(--excel-green-light);
+  color: #ffffff;
   font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--excel-green-light);
 }
 
 /* Ribbon Controls Bar */
 .ribbon-controls {
-  background-color: var(--excel-bg-header);
-  border-top: 1px solid var(--excel-border);
+  background-color: var(--excel-bg-ribbon);
   padding: 10px 16px;
   display: flex;
   align-items: center;
@@ -210,7 +233,7 @@ body {
   align-items: center;
   gap: 8px;
   border-right: 1px solid var(--excel-border);
-  padding-right: 16px;
+  padding-right: 20px;
 }
 
 .control-group:last-child {
@@ -218,65 +241,88 @@ body {
 }
 
 .control-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 /* Excel Style Button */
 .excel-btn {
-  background-color: transparent;
+  background-color: var(--surface-raised);
   border: 1px solid var(--excel-border);
-  color: var(--text-primary);
+  color: var(--text-body);
   padding: 6px 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-lg);
   font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  transition: all 0.2s;
+  min-height: var(--control-h);
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
 }
 
 .excel-btn:hover:not(:disabled) {
   background-color: var(--excel-bg-active);
-  border-color: var(--excel-green-light);
+  border-color: #33405a;
+  color: #ffffff;
 }
 
 .excel-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.4;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .excel-btn.primary {
   background-color: var(--excel-green);
   border-color: var(--excel-green);
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .excel-btn.primary:hover:not(:disabled) {
   background-color: var(--excel-green-hover);
-  box-shadow: 0 0 10px var(--excel-green-glow);
+  border-color: var(--excel-green-hover);
+  box-shadow: 0 4px 14px var(--excel-green-glow);
 }
 
 /* Excel Style Inputs */
 .excel-select, .excel-input {
   background-color: var(--excel-bg-app);
   border: 1px solid var(--excel-border);
-  color: var(--text-primary);
+  color: var(--text-body);
   font-family: var(--font-sans);
-  font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 4px;
+  font-size: 12.5px;
+  padding: 0 10px;
+  min-height: var(--control-h);
+  line-height: 1.3;
+  max-width: 100%;
+  min-width: 0;
+  border-radius: var(--radius-lg);
   outline: none;
   cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.excel-input {
+  cursor: text;
+}
+
+textarea.excel-input {
+  padding: 8px 10px;
 }
 
 .excel-select:focus, .excel-input:focus {
   border-color: var(--excel-green-light);
+  box-shadow: var(--focus-ring);
 }
 
 /* GRID VIEW SPREADSHEET */
@@ -295,32 +341,40 @@ body {
   min-height: 0;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  border-bottom: 1px solid var(--excel-border);
+  background-color: var(--excel-bg-app);
 }
 
 .excel-grid {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13px;
   font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   table-layout: auto;
   width: max-content;
   min-width: 100%;
 }
 
 /* Column headers styling */
+.excel-grid thead th:not(:first-child) {
+  min-width: 150px;
+}
+
 .excel-grid thead th {
   background-color: var(--excel-bg-header);
-  border-right: 1px solid var(--excel-border);
-  border-bottom: 2px solid var(--excel-border);
-  color: var(--text-secondary);
+  border-right: 1px solid var(--excel-border-grid);
+  border-bottom: 1px solid var(--excel-border);
+  color: #c9d3e3;
   font-weight: 600;
-  padding: 8px 12px;
-  text-align: center;
+  padding: 7px 14px 8px;
+  text-align: left;
   position: sticky;
   top: 0;
   z-index: 10;
-  font-size: 12px;
+  font-size: 12.5px;
+  white-space: nowrap;
   user-select: none;
+  box-shadow: 0 1px 0 var(--excel-border);
 }
 
 /* Celda de esquina superior izquierda fija (intersección fila y columna) */
@@ -332,17 +386,21 @@ body {
   left: 0 !important;
   z-index: 25 !important;
   background-color: var(--excel-bg-header) !important;
-  width: 50px !important;
-  min-width: 50px !important;
+  width: 52px !important;
+  min-width: 52px !important;
   text-align: center;
-  border-right: 2px solid var(--excel-border);
+  border-right: 1px solid var(--excel-border);
 }
+
+.excel-grid thead th.th-numeric,
+.cr-data-table th.th-numeric { text-align: right; }
 
 .col-letter {
   display: block;
-  font-size: 9px;
-  color: var(--excel-green-light);
-  font-weight: 700;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
   margin-bottom: 1px;
 }
@@ -351,15 +409,16 @@ body {
 .row-number,
 .cr-td-row-num {
   background-color: var(--excel-bg-row-num);
-  border-right: 2px solid var(--excel-border);
-  border-bottom: 1px solid var(--excel-border);
+  border-right: 1px solid var(--excel-border);
+  border-bottom: 1px solid var(--excel-border-grid);
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
   font-weight: 500;
   text-align: center;
-  width: 50px;
-  min-width: 50px;
+  width: 52px;
+  min-width: 52px;
   position: sticky;
   left: 0;
   z-index: 6;
@@ -370,34 +429,40 @@ body {
 .excel-grid td {
   border-right: 1px solid var(--excel-border-grid);
   border-bottom: 1px solid var(--excel-border-grid);
-  padding: 6px 12px;
+  padding: 7px 14px;
+  max-width: clamp(240px, 28vw, 520px);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--text-primary);
+  color: var(--text-body);
+  background-color: var(--excel-bg-app);
+}
+
+.excel-grid tbody tr:nth-child(even):not(:hover) td:not(.row-number) {
+  background-color: #0d121b;
 }
 
 .excel-grid tbody tr:hover td {
-  background-color: rgba(255, 255, 255, 0.015);
+  background-color: #121c25;
 }
 
 /* Highlight active cell or row selection */
 .excel-grid tbody tr:hover .row-number {
-  color: var(--text-primary);
-  background-color: var(--excel-bg-active);
+  color: var(--excel-green-light);
+  background-color: #121c25;
+  box-shadow: inset 2px 0 0 var(--excel-green-light);
 }
 
 /* Cell alignment styles */
 .cell-numeric {
   text-align: right;
-  font-family: var(--font-mono);
-  color: #58a6ff;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-body);
 }
 
 .cell-null {
   color: var(--text-muted);
-  font-style: italic;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* FOREIGN KEY: badge de cabecera, relación en Estructura y toggle de modo en el Ribbon */
@@ -418,22 +483,24 @@ body {
 
 .fk-mode-toggle {
   display: flex;
+  background-color: var(--excel-bg-app);
   border: 1px solid var(--excel-border);
-  border-radius: 4px;
-  overflow: hidden;
+  border-radius: var(--radius-lg);
+  padding: 2px;
+  gap: 2px;
 }
 
 .fk-mode-btn {
   background: none;
   border: none;
-  border-right: 1px solid var(--excel-border);
+  border-radius: 6px;
   color: var(--text-secondary);
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  padding: 6px 10px;
+  padding: 5px 10px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .fk-mode-btn:last-child {
@@ -446,8 +513,10 @@ body {
 }
 
 .fk-mode-btn.active {
-  background-color: var(--excel-green);
-  color: #fff;
+  background-color: var(--excel-bg-active);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px #2c3850;
 }
 
 .fk-mode-btn:disabled {
@@ -462,8 +531,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 40px;
-  padding: 0 16px;
+  gap: var(--space-2);
+  height: 46px;
+  padding: 0 var(--gutter);
   flex-shrink: 0;
   user-select: none;
 }
@@ -471,10 +541,13 @@ body {
 .tabs-wrapper {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   overflow-x: auto;
-  max-width: 80%;
+  scrollbar-width: none;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 100%;
+  padding: 0 2px;
 }
 
 .tabs-wrapper::-webkit-scrollbar {
@@ -483,43 +556,39 @@ body {
 
 /* Worksheet Tab Item */
 .sheet-tab {
-  background: none;
-  border: none;
-  border-right: 1px solid var(--excel-border);
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
   color: var(--text-secondary);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
-  padding: 0 16px;
-  height: 100%;
+  padding: 0 12px;
+  height: 32px;
   display: flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   position: relative;
-  background-color: var(--excel-bg-sidebar);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .sheet-tab:hover {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: var(--surface-raised);
   color: var(--text-primary);
 }
 
 .sheet-tab.active {
-  background-color: var(--excel-bg-app);
-  color: var(--excel-green-light);
+  background-color: rgba(33, 163, 102, 0.12);
+  border-color: rgba(33, 163, 102, 0.35);
+  color: #ffffff;
   font-weight: 600;
 }
 
 .sheet-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background-color: var(--excel-green);
+  content: none;
 }
 
 .sheet-icon {
@@ -536,27 +605,28 @@ body {
   display: flex;
   align-items: center;
   position: relative;
-  width: 200px;
+  width: clamp(120px, 16vw, 240px);
   flex-shrink: 0;
 }
 
 .sheet-search-icon {
   position: absolute;
-  left: 8px;
+  left: 10px;
   color: var(--text-muted);
   pointer-events: none;
 }
 
 .sheet-search-input {
   width: 100%;
+  height: 32px;
   background-color: var(--excel-bg-app);
   border: 1px solid var(--excel-border);
-  border-radius: 4px;
+  border-radius: var(--radius-lg);
   color: var(--text-primary);
-  font-size: 11px;
-  padding: 4px 8px 4px 26px;
+  font-size: 12.5px;
+  padding: 0 10px 0 30px;
   outline: none;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .sheet-search-input:focus {
@@ -566,15 +636,19 @@ body {
 
 /* STATUS BAR COMPONENT */
 .status-bar {
-  background-color: var(--excel-green);
-  color: #ffffff;
-  height: 24px;
-  padding: 0 16px;
+  background-color: var(--excel-bg-app);
+  color: var(--text-secondary);
+  border-top: 1px solid var(--excel-border);
+  height: 28px;
+  padding: 0 var(--gutter);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
-  font-weight: 600;
+  gap: var(--space-3);
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 500;
   flex-shrink: 0;
 }
 
@@ -591,10 +665,9 @@ body {
 }
 
 .status-metric {
-  font-family: var(--font-mono);
-  background-color: rgba(0, 0, 0, 0.15);
-  padding: 1px 6px;
-  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-body);
+  font-weight: 600;
 }
 
 /* LOADING & ERROR SCREENS */
@@ -649,11 +722,13 @@ body {
 
 /* FORMULA BAR STYLE WELCOME SCREEN */
 .welcome-workbook-view {
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: clamp(16px, 4vw, 40px);
 }
 
 .welcome-sheet {
@@ -661,7 +736,8 @@ body {
   border: 1px solid var(--excel-border);
   border-radius: 12px;
   max-width: 700px;
-  padding: 40px;
+  margin: auto;
+  padding: clamp(20px, 4vw, 40px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
 }
 
@@ -683,7 +759,7 @@ body {
 
 .sheet-guide-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 20px;
 }
 
@@ -852,13 +928,15 @@ body {
   background-color: var(--excel-bg-sidebar);
   border: 1px solid var(--excel-border);
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   margin-top: 8px;
 }
 
 .schema-table {
   width: 100%;
+  min-width: 860px;
   border-collapse: collapse;
   font-size: 13px;
   font-family: var(--font-sans);
@@ -949,6 +1027,9 @@ body {
    limpieza dedicada en vez de arriesgar una regresión visual en este cambio. */
 .fk-inline-form {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   background-color: var(--excel-bg-sidebar) !important;
   border: 1px solid var(--excel-green) !important;
   padding: 16px !important;
@@ -981,7 +1062,8 @@ body {
   padding: 6px 10px !important;
   border-radius: 4px !important;
   outline: none;
-  min-width: 160px;
+  min-width: min(160px, 100%);
+  max-width: 100%;
   cursor: pointer;
   transition: border-color 0.15s;
 }
@@ -1077,6 +1159,8 @@ body {
    MODALES GENÉRICOS Y POPUPS (ESTRUCTURA UNIVERSAL FLUENT / EXCEL)
    ========================================================================== */
 .modal-backdrop {
+  overflow-y: auto;
+  overscroll-behavior: contain;
   position: fixed;
   inset: 0;
   background-color: rgba(4, 8, 15, 0.85);
@@ -1099,7 +1183,9 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  max-height: 90vh;
+  max-width: var(--modal-max-w, 560px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
   animation: modalScaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1165,6 +1251,8 @@ body {
 /* --- CONSOLA DE ADMINISTRACIÓN DE BASE DE DATOS (DBA CONSOLE MODAL) --- */
 
 .dba-modal-overlay {
+  overflow-y: auto;
+  overscroll-behavior: contain;
   position: fixed;
   inset: 0;
   background-color: rgba(4, 8, 15, 0.85);
@@ -1187,7 +1275,8 @@ body {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
   display: flex;
   flex-direction: column;
-  max-height: 85vh;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
   overflow: hidden;
   animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1255,8 +1344,8 @@ body {
 /* DBA Console Grid Layout */
 .dba-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: var(--space-4);
 }
 
 .dba-card {
@@ -1283,9 +1372,20 @@ body {
 .dba-metric-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
+  gap: var(--space-3);
   font-size: 12px;
   padding: 4px 0;
+}
+
+.dba-metric-row > .dba-metric-value {
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dba-metric-row--stacked > .dba-metric-value {
+  text-align: left;
 }
 
 .dba-metric-label {
@@ -1401,8 +1501,7 @@ body {
 }
 
 .dba-modal--wide {
-  max-width: 850px;
-  width: 90%;
+  max-width: 880px;
 }
 
 .dba-modal-header--accent {
@@ -1422,7 +1521,9 @@ body {
   padding: 0;
   display: flex;
   flex-direction: row;
-  min-height: 450px;
+  gap: 0;
+  min-height: min(450px, 60dvh);
+  flex: 1 1 auto;
   overflow: hidden;
 }
 
@@ -1509,7 +1610,7 @@ body {
 
 .manual-grid-2 {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 16px;
   margin-top: 10px;
 }
@@ -1692,8 +1793,8 @@ body {
   display: flex;
   background-color: var(--excel-bg-app);
   border: 1px solid var(--excel-border);
-  border-radius: 6px;
-  padding: 2px;
+  border-radius: 10px;
+  padding: 3px;
   gap: 2px;
 }
 
@@ -1701,27 +1802,27 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 12px;
+  padding: 6px 14px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 500;
-  border-radius: 4px;
+  border-radius: 7px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .view-mode-btn:hover {
   color: var(--text-primary);
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--surface-raised);
 }
 
 .view-mode-btn.active {
-  background-color: var(--excel-green);
+  background-color: var(--excel-bg-active);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm), inset 0 0 0 1px #2c3850;
 }
 
 /* Workspace Layout */
@@ -1836,11 +1937,13 @@ body {
 .excel-btn--compact {
   font-size: 11px;
   padding: 3px 8px;
+  min-height: var(--control-h-sm);
 }
 
 .excel-btn--xs {
   font-size: 11px;
   padding: 2px 8px;
+  min-height: 24px;
 }
 
 .cr-icon-btn {
@@ -1869,19 +1972,27 @@ body {
 /* Body Content */
 .cr-body-content {
   display: flex;
-  flex-grow: 1;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
 /* 3-Column Builder Layout */
 .cr-builder-layout {
   display: grid;
-  grid-template-columns: 1.1fr 1.2fr 1.2fr;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.2fr);
   gap: 14px;
   padding: 14px;
   width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
+}
+
+.cr-builder-layout > .cr-panel-card {
+  min-width: 0;
+  min-height: 0;
 }
 
 .cr-panel-card {
@@ -2604,7 +2715,8 @@ body {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -2674,7 +2786,8 @@ body {
 /* Results Spreadsheet Grid */
 .cr-spreadsheet-container {
   display: flex;
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   background-color: var(--excel-bg-app);
 }
@@ -2699,9 +2812,12 @@ body {
 }
 
 .cr-data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
 .cr-data-table thead {
@@ -2712,23 +2828,25 @@ body {
 
 .cr-data-table th {
   background-color: var(--excel-bg-header);
-  color: var(--text-primary);
+  color: #c9d3e3;
   font-weight: 600;
+  font-size: 12.5px;
   text-align: left;
-  padding: 8px 12px;
-  border-right: 1px solid var(--excel-border);
-  border-bottom: 2px solid var(--excel-green);
+  padding: 10px 14px;
+  border-right: 1px solid var(--excel-border-grid);
+  border-bottom: 1px solid var(--excel-border);
   white-space: nowrap;
 }
 
 .cr-th-row-num,
 .cr-td-row-num {
-  width: 45px;
+  width: 52px;
   text-align: center;
   background-color: var(--excel-bg-row-num);
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
   border-right: 1px solid var(--excel-border);
   position: sticky;
   left: 0;
@@ -2736,15 +2854,23 @@ body {
 }
 
 .cr-data-table td {
-  padding: 7px 12px;
+  padding: 7px 14px;
+  max-width: clamp(240px, 28vw, 520px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   border-right: 1px solid var(--excel-border-grid);
   border-bottom: 1px solid var(--excel-border-grid);
-  color: var(--text-primary);
+  color: var(--text-body);
   white-space: nowrap;
+  background-color: var(--excel-bg-app);
+}
+
+.cr-data-table tbody tr:nth-child(even):not(:hover) td:not(.cr-td-row-num) {
+  background-color: #0d121b;
 }
 
 .cr-data-table tr:hover td {
-  background-color: var(--excel-bg-active);
+  background-color: #121c25;
 }
 
 .cr-cell-null {
@@ -2953,10 +3079,10 @@ body {
 .ux-mode-toggle {
   display: flex;
   align-items: center;
-  background-color: rgba(0, 0, 0, 0.35);
+  background-color: var(--excel-bg-app);
   border: 1px solid var(--excel-border);
-  border-radius: 20px;
-  padding: 2px;
+  border-radius: 10px;
+  padding: 3px;
   gap: 2px;
 }
 
@@ -2964,30 +3090,28 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 16px;
+  padding: 5px 12px;
+  border-radius: 7px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
   white-space: nowrap;
 }
 
 .ux-mode-btn.active.simple {
-  background-color: var(--excel-green);
-  color: #ffffff;
+  background-color: rgba(33, 163, 102, 0.16);
+  color: #6ee7a8;
   font-weight: 600;
-  box-shadow: 0 2px 6px rgba(16, 124, 65, 0.4);
 }
 
 .ux-mode-btn.active.advanced {
-  background-color: #3b82f6;
-  color: #ffffff;
+  background-color: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
   font-weight: 600;
-  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
 }
 
 .ux-mode-btn:not(.active):hover {
@@ -3021,653 +3145,292 @@ body {
 }
 
 /* ==========================================================================
-   RESPONSIVIDAD MÓVIL Y TABLETS (BREAKPOINTS: 1200px, 1024px, 768px, 480px)
+   PANTALLA DE ACCESO (LOGIN) — estilo SaaS empresarial
+   Escritorio: panel de marca + formulario. Móvil/tablet: una columna,
+   formulario primero e instructivo al pie.
    ========================================================================== */
+.login-screen {
+  --login-accent: #21a366;
+  --login-accent-strong: #107c41;
+  --login-gold: #e3c45a;
+  --login-surface: #0d131d;
+  --login-field-bg: #0a1018;
+  --login-field-border: #2a3549;
+  --login-error: #f87171;
 
-@media (max-width: 1200px) {
-  .ribbon-top-bar {
-    padding: 6px 12px;
-    gap: 8px;
-  }
-}
-
-@media (max-width: 1024px) {
-  .ribbon-top-bar {
-    padding: 6px 10px;
-    gap: 8px;
-  }
-
-  .view-mode-switcher {
-    gap: 3px;
-  }
-
-  .view-mode-btn {
-    padding: 4px 8px;
-    font-size: 11px;
-  }
-
-  .cr-builder-layout {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
-  }
-
-  .cr-builder-col:nth-child(3) {
-    grid-column: span 2;
-  }
-}
-
-@media (max-width: 768px) {
-  /* Layout Raíz */
-  .app-layout {
-    height: 100%;
-    height: 100dvh;
-    overflow: hidden;
-  }
-
-  /* Ribbon Superior Móvil */
-  .ribbon-top-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 6px 10px;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .excel-logo-area {
-    gap: 6px;
-  }
-
-  .excel-logo-area .app-title {
-    font-size: 12px;
-  }
-
-  .excel-logo-area .app-title span {
-    display: none;
-  }
-
-  .db-status {
-    display: none;
-  }
-
-  /* El selector de vista ocupa la segunda fila en móviles */
-  .view-mode-switcher {
-    order: 10;
-    width: 100%;
-    display: flex;
-    gap: 4px;
-    margin-top: 2px;
-  }
-
-  .view-mode-btn {
-    flex: 1;
-    justify-content: center;
-    font-size: 11px;
-    padding: 6px 6px;
-    white-space: nowrap;
-    text-align: center;
-  }
-
-  /* Modo UX fácil vs DBA se compacta en tablet/móvil */
-  .ux-mode-toggle {
-    display: none;
-  }
-
-  .conn-trigger-btn {
-    max-width: 130px;
-    padding: 4px 8px;
-    font-size: 11px;
-  }
-
-  .conn-trigger-btn span:nth-child(2) {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 80px;
-  }
-
-  .user-profile-pill {
-    padding: 2px 4px 2px 6px;
-  }
-
-  .user-profile-name {
-    max-width: 65px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* Barra de Pestañas del Ribbon */
-  .ribbon-tabs {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 0 4px;
-    white-space: nowrap;
-    display: flex;
-  }
-
-  .ribbon-tab {
-    padding: 6px 10px;
-    font-size: 11px;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .ribbon-tab:last-child {
-    display: none;
-  }
-
-  /* Controles del Ribbon con scroll horizontal táctil */
-  .ribbon-controls {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 8px 10px;
-    gap: 12px;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-  }
-
-  .control-group {
-    flex-shrink: 0;
-    padding-right: 12px;
-    gap: 6px;
-  }
-
-  /* Grilla Spreadsheet */
-  .spreadsheet-container {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .grid-wrapper {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Constructor de Reportes Móvil */
-  .custom-reports-workspace {
-    flex: 1 1 auto;
-    min-height: 0;
-    height: auto;
-    overflow: hidden;
-  }
-
-  .cr-top-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 8px 10px;
-  }
-
-  .cr-title-area {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .cr-header-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 6px;
-  }
-
-  .cr-header-actions .excel-btn {
-    flex: 1;
-    min-width: 75px;
-    justify-content: center;
-    padding: 5px 4px;
-    font-size: 10.5px;
-  }
-
-  .cr-view-pills {
-    width: 100%;
-  }
-
-  .cr-view-pill {
-    flex: 1;
-    justify-content: center;
-    padding: 5px 6px;
-    font-size: 11px;
-  }
-
-  .cr-builder-layout {
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 8px;
-    gap: 12px;
-    flex: 1 1 auto;
-    min-height: 0;
-  }
-
-  .cr-builder-col {
-    min-height: 260px;
-    border-radius: 8px;
-    flex-shrink: 0;
-  }
-
-  /* Barra de Resultados Móvil */
-  .cr-results-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 8px 10px;
-  }
-
-  .cr-results-stats {
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 6px;
-  }
-
-  .cr-results-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .cr-results-actions .excel-btn {
-    flex: 1;
-    justify-content: center;
-    padding: 5px 6px;
-    font-size: 11px;
-  }
-
-  .cr-spreadsheet-container {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .cr-table-scroll-wrapper {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Paginación Inferior */
-  .cr-pagination-bar {
-    flex-direction: column;
-    gap: 6px;
-    padding: 6px 10px;
-    align-items: stretch;
-  }
-
-  .cr-pagination-range {
-    text-align: center;
-    order: -1;
-    font-size: 11px;
-  }
-
-  /* Pestañas de Tablas Inferiores (SheetTabs) */
-  .worksheet-tabs-bar {
-    padding: 0 8px;
-    height: 36px;
-    gap: 6px;
-  }
-
-  .tabs-wrapper {
-    flex: 1;
-    max-width: calc(100% - 110px);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .sheet-tab {
-    padding: 0 10px;
-    font-size: 11px;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-
-  /* Buscador de hojas inferior */
-  .worksheet-tabs-bar > div:last-child {
-    max-width: 100px !important;
-    width: 100px !important;
-  }
-
-  .worksheet-tabs-bar > div:last-child input {
-    font-size: 10.5px !important;
-    padding: 3px 6px 3px 22px !important;
-  }
-
-  /* StatusBar */
-  .status-bar {
-    padding: 0 8px;
-    height: 22px;
-    font-size: 10px;
-    gap: 4px;
-  }
-
-  .status-left span:nth-child(n+2),
-  .status-right span:last-child {
-    display: none;
-  }
-
-  /* Connection Modal & DBA Responsive */
-  .conn-modal-card,
-  .dba-modal,
-  .modal-card {
-    max-width: calc(100vw - 16px) !important;
-    max-height: calc(100dvh - 20px) !important;
-    margin: 8px;
-  }
-
-  .conn-engine-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .conn-form-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .conn-form-col.span-2,
-  .conn-form-col.full {
-    grid-column: span 2;
-  }
-
-  .dba-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 480px) {
-  .toast-container {
-    top: 8px;
-    right: 8px;
-    left: 8px;
-    width: auto;
-    max-width: 100%;
-  }
-
-  .conn-engine-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .conn-form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .conn-form-col.span-2,
-  .conn-form-col.full {
-    grid-column: span 1;
-  }
-
-  .conn-modal-footer {
-    flex-direction: column-reverse;
-    gap: 8px;
-    align-items: stretch;
-  }
-
-  .conn-modal-footer .excel-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .cr-stat-total-card {
-    padding: 2px 6px;
-  }
-
-  .cr-stat-total-num {
-    font-size: 11.5px;
-  }
-}
-
-/* ==========================================================================
-   MODAL DE ACCESO / LOGIN CORPORATIVO (FLUENT / EXCEL DARK THEME)
-   ========================================================================== */
-.login-modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(4, 8, 15, 0.82);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 10000;
-  padding: 16px;
-  animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: grid;
+  grid-template-columns: minmax(340px, 0.85fr) minmax(0, 1.15fr);
+  background-color: var(--excel-bg-app);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: modalFadeIn 0.25s ease;
 }
 
-.login-modal-card {
-  width: 100%;
-  max-width: 420px;
-  background: linear-gradient(180deg, #16202e 0%, #0d141e 100%);
-  border: 1px solid rgba(16, 124, 65, 0.4);
-  border-radius: 14px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 25px rgba(16, 124, 65, 0.2);
+/* --- Panel de marca --- */
+.login-aside {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  animation: modalScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  justify-content: space-between;
+  gap: 40px;
+  padding: clamp(32px, 4vw, 64px);
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(33, 163, 102, 0.18) 0%, transparent 60%),
+    linear-gradient(180deg, #0f1a17 0%, #0b1210 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  min-height: 100%;
 }
-
-.login-modal-header {
-  padding: 28px 24px 20px 24px;
-  text-align: center;
-  background: radial-gradient(circle at top, rgba(16, 124, 65, 0.25) 0%, rgba(22, 32, 46, 0) 70%);
-  border-bottom: 1px solid var(--excel-border);
+.login-aside-brand {
   display: flex;
-  flex-direction: column;
   align-items: center;
+  gap: 14px;
 }
-
-.login-logo-wrapper {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 12px;
-}
-
-.login-app-logo {
+.login-aside-logo {
   width: 52px;
   height: 52px;
-  border-radius: 12px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  object-fit: contain;
+  flex-shrink: 0;
 }
-
-.login-shield-badge {
-  position: absolute;
-  bottom: -4px;
-  right: -4px;
-  background-color: var(--excel-green);
-  color: #ffffff;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #16202e;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-}
-
-.login-title {
+.login-aside-name,
+.login-brand-compact-name {
   font-size: 18px;
   font-weight: 700;
   color: #ffffff;
-  margin: 0;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
 }
-
-.login-subtitle {
-  font-size: 12px;
+.login-aside-name span,
+.login-brand-compact-name span { color: var(--login-accent); }
+.login-aside-tagline {
+  margin-top: 2px;
+  font-size: 13px;
   color: var(--text-secondary);
-  margin: 4px 0 0 0;
 }
 
-.login-error-banner {
-  margin: 16px 24px 0 24px;
-  padding: 10px 14px;
-  background-color: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.login-steps { max-width: 420px; }
+.login-steps-title {
   font-size: 12px;
-  color: #fca5a5;
-  line-height: 1.4;
-  animation: shakeX 0.4s ease;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--login-gold);
+  margin-bottom: 16px;
 }
-
-.login-error-icon {
-  color: #ef4444;
-  flex-shrink: 0;
-}
-
-.login-form {
-  padding: 20px 24px;
+.login-steps-list {
+  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  counter-reset: step;
 }
+.login-steps-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.login-steps-list strong { color: #e6edf7; font-weight: 600; }
+.login-step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  color: var(--login-accent);
+  background-color: rgba(33, 163, 102, 0.12);
+  border: 1px solid rgba(33, 163, 102, 0.25);
+}
+.login-aside-security {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 420px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.login-aside-security svg { color: var(--login-accent); flex-shrink: 0; margin-top: 1px; }
 
-.login-field-group {
+/* --- Columna del formulario --- */
+.login-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: clamp(24px, 5vw, 64px) clamp(16px, 4vw, 48px);
+  min-height: 100%;
 }
+.login-panel {
+  width: 100%;
+  max-width: 400px;
+  margin: auto 0;
+  outline: none;
+}
+.login-brand-compact { display: none; }
 
-.login-label {
-  font-size: 11.5px;
-  font-weight: 600;
+.login-header { margin-bottom: 20px; }
+.login-title {
+  font-size: clamp(22px, 1.4vw + 14px, 28px);
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
+}
+.login-subtitle {
+  margin-top: 6px;
+  font-size: 14px;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  line-height: 1.5;
 }
 
-.login-input-wrapper {
+/* --- Alertas --- */
+.login-alert-slot:empty { display: none; }
+.login-alert-slot { margin-bottom: 18px; }
+.login-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid;
+  animation: fadeIn 0.2s ease;
+}
+.login-alert-icon { flex-shrink: 0; margin-top: 1px; }
+.login-alert-title { font-size: 13px; font-weight: 600; color: #ffffff; }
+.login-alert-text { margin-top: 2px; font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
+.login-alert--error { background-color: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.35); }
+.login-alert--error .login-alert-icon { color: var(--login-error); }
+.login-alert--warning { background-color: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.35); }
+.login-alert--warning .login-alert-icon { color: #fbbf24; }
+.login-alert--info { background-color: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.35); }
+.login-alert--info .login-alert-icon { color: #60a5fa; }
+
+/* --- Campos --- */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.login-field { display: flex; flex-direction: column; gap: 6px; }
+.login-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #dbe3ef;
+}
+.login-required { color: var(--text-muted); font-weight: 400; margin-left: 2px; }
+.login-input-wrap {
   position: relative;
   display: flex;
   align-items: center;
 }
-
 .login-input-icon {
   position: absolute;
-  left: 12px;
+  left: 13px;
   color: var(--text-muted);
   pointer-events: none;
-}
-
-.login-input {
-  width: 100%;
-  height: 40px;
-  background-color: #0b111a;
-  border: 1px solid var(--excel-border);
-  border-radius: 7px;
-  padding: 0 40px 0 38px;
-  color: #ffffff;
-  font-size: 13px;
-  font-family: inherit;
-  transition: all 0.18s ease;
-}
-
-.login-input:focus {
-  outline: none;
-  border-color: var(--excel-green-light);
-  box-shadow: 0 0 0 3px rgba(16, 124, 65, 0.25);
-  background-color: #0e1622;
-}
-
-.login-toggle-pwd-btn {
-  position: absolute;
-  right: 10px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: color 0.15s ease;
 }
-
-.login-toggle-pwd-btn:hover {
+.login-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px 0 40px;
+  background-color: var(--login-field-bg);
+  border: 1px solid var(--login-field-border);
+  border-radius: 10px;
   color: #ffffff;
+  font-family: inherit;
+  font-size: 15px; /* ≥15px evita el zoom automático de iOS al enfocar */
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
+.login-input--with-action { padding-right: 48px; }
+.login-input::placeholder { color: #56647d; }
+.login-input:hover:not(:disabled) { border-color: #3a4862; }
+.login-input:focus,
+.login-input:focus-visible {
+  outline: none;
+  border-color: var(--login-accent);
+  box-shadow: 0 0 0 3px rgba(33, 163, 102, 0.22);
+  background-color: #0c131d;
+}
+.login-input-wrap:focus-within .login-input-icon { color: var(--login-accent); }
+.login-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-input-wrap.has-error .login-input { border-color: rgba(248, 113, 113, 0.7); }
+.login-input-wrap.has-error .login-input:focus { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2); }
+.login-input-wrap.has-error .login-input-icon { color: var(--login-error); }
 
-.login-options-row {
+.login-pwd-toggle {
+  position: absolute;
+  right: 6px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-}
-
-.login-remember-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-}
-
-.login-checkbox {
-  accent-color: var(--excel-green);
-  width: 14px;
-  height: 14px;
-  cursor: pointer;
-}
-
-.login-cancel-btn {
+  justify-content: center;
   background: transparent;
   border: none;
+  border-radius: 8px;
   color: var(--text-muted);
-  font-size: 12px;
   cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
+.login-pwd-toggle:hover:not(:disabled) { color: #ffffff; background-color: rgba(255, 255, 255, 0.06); }
+.login-pwd-toggle:disabled { cursor: not-allowed; opacity: 0.5; }
 
-.login-cancel-btn:hover {
-  color: var(--text-primary);
-  background-color: rgba(255, 255, 255, 0.05);
+.login-field-error,
+.login-field-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  line-height: 1.4;
 }
+.login-field-error { color: var(--login-error); }
+.login-field-hint { color: var(--text-secondary); }
+.login-field-hint--warn { color: #fbbf24; }
 
-.login-submit-btn {
+/* --- Botones --- */
+.login-submit {
+  margin-top: 4px;
   width: 100%;
-  height: 42px;
-  background: linear-gradient(135deg, #107c41 0%, #0d6836 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 7px;
-  color: #ffffff;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
+  height: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(16, 124, 65, 0.35);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  margin-top: 4px;
+  background-color: var(--login-accent-strong);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(16, 124, 65, 0.25);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
+.login-submit:hover:not(:disabled) { background-color: #128a49; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 22px rgba(16, 124, 65, 0.35); }
+.login-submit:active:not(:disabled) { background-color: #0d6836; transform: translateY(1px); }
+.login-submit:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.login-submit:disabled { opacity: 0.7; cursor: progress; box-shadow: none; }
 
-.login-submit-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #128a49 0%, #107c41 100%);
-  box-shadow: 0 6px 20px rgba(16, 124, 65, 0.5);
-  transform: translateY(-1px);
+.login-secondary {
+  height: 40px;
+  background: transparent;
+  border: 1px solid var(--login-field-border);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
-
-.login-submit-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.login-submit-btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
+.login-secondary:hover:not(:disabled) { color: #ffffff; border-color: #3a4862; }
 
 .login-spinner {
   width: 16px;
@@ -3678,23 +3441,81 @@ body {
   animation: spin 0.7s linear infinite;
 }
 
-.login-modal-footer {
-  padding: 12px 24px 18px 24px;
-  background-color: #0a0f17;
-  border-top: 1px solid var(--excel-border);
+.login-help {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.login-help svg { flex-shrink: 0; margin-top: 2px; color: var(--text-muted); }
+.login-legal {
+  font-size: 11.5px;
+  color: var(--text-muted);
   text-align: center;
 }
 
-.login-footer-text {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin: 0;
+/* --- Tablet y móvil: una columna, formulario primero --- */
+@media (max-width: 959px) {
+  .login-screen {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+    background:
+      radial-gradient(90% 40% at 50% 0%, rgba(33, 163, 102, 0.12) 0%, transparent 70%),
+      var(--excel-bg-app);
+  }
+  .login-main { order: 1; min-height: auto; justify-content: flex-start; padding-bottom: 8px; }
+  .login-aside {
+    order: 2;
+    min-height: auto;
+    border-right: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: transparent;
+    padding: 24px clamp(16px, 4vw, 48px) 32px;
+    align-items: center;
+    gap: 20px;
+  }
+  .login-aside-brand { display: none; }
+  .login-steps,
+  .login-aside-security { width: 100%; max-width: 400px; }
+  .login-brand-compact {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  .login-brand-compact-logo { width: 40px; height: 40px; object-fit: contain; }
+  .login-brand-compact-name { font-size: 16px; }
+  .login-legal { order: 3; }
+}
+
+@media (max-width: 479px) {
+  .login-main { padding: 24px 16px 8px; }
+  .login-brand-compact { margin-bottom: 20px; }
+  .login-subtitle { font-size: 13.5px; }
+  .login-steps-list { gap: 12px; }
+  .login-steps-list li { font-size: 13px; }
+}
+
+/* Horizontal / pantallas bajas */
+@media (max-height: 520px) and (max-width: 959px) {
+  .login-main { padding-top: 16px; }
+  .login-brand-compact { margin-bottom: 12px; }
+  .login-header { margin-bottom: 14px; }
+  .login-form { gap: 12px; }
+  .login-input, .login-submit { height: 42px; }
 }
 
 /* ==========================================================================
    MODAL DE CONEXIÓN MULTI-DATABASE (SQL SERVER, POSTGRES, MYSQL, ORACLE, SQLITE)
    ========================================================================== */
 .conn-modal-overlay {
+  overflow-y: auto;
+  overscroll-behavior: contain;
   position: fixed;
   inset: 0;
   background-color: rgba(4, 8, 15, 0.85);
@@ -3711,7 +3532,8 @@ body {
 .conn-modal-card {
   width: 100%;
   max-width: 680px;
-  max-height: 90vh;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
   background: linear-gradient(180deg, #151d2a 0%, #0d121b 100%);
   border: 1px solid var(--excel-border);
   border-radius: 14px;
@@ -4089,16 +3911,16 @@ body {
 .conn-trigger-btn {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  background-color: rgba(0, 0, 0, 0.35);
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-raised);
   border: 1px solid var(--excel-border);
-  color: var(--text-primary);
-  font-size: 11.5px;
+  color: var(--text-body);
+  font-size: 12.5px;
   cursor: pointer;
-  height: 26px;
-  transition: all 0.18s ease;
+  height: 34px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .conn-trigger-btn:hover {
@@ -4110,18 +3932,18 @@ body {
 .user-profile-pill {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 6px 3px 8px;
-  background-color: rgba(0, 0, 0, 0.3);
+  gap: 8px;
+  padding: 0 6px 0 10px;
+  background-color: var(--surface-raised);
   border: 1px solid var(--excel-border);
-  border-radius: 16px;
-  height: 26px;
+  border-radius: 999px;
+  height: 34px;
 }
 
 .user-profile-name {
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-body);
 }
 
 .user-logout-btn {
@@ -4152,3 +3974,959 @@ body {
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+
+/* ==========================================================================
+   CAPA DE COMPONENTES Y UTILIDADES (antes estilos inline dispersos en JSX)
+   ========================================================================== */
+
+/* --- Utilidades --- */
+.text-accent { color: var(--excel-green-light); }
+.text-green { color: var(--excel-green-light); }
+.text-warn { color: var(--excel-amber); }
+.text-yellow { color: var(--excel-yellow); }
+.text-muted { color: var(--text-muted); }
+.text-bold { font-weight: 700; }
+.text-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inline-icon {
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: -2px;
+  flex-shrink: 0;
+}
+.excel-icon { flex-shrink: 0; }
+
+/* Etiquetas largas/cortas: la versión corta solo aparece en pantallas pequeñas */
+.label-short,
+.ux-label-short { display: none; }
+
+/* Indicadores de carga (las clases existían en el JSX pero no estaban definidas) */
+.animate-spin { animation: spin 1s linear infinite; }
+.animate-fade-in { animation: fadeIn 0.2s ease; }
+
+/* Foco visible y consistente para navegación por teclado */
+:where(button, a, [role="tab"], .sheet-tab):focus-visible {
+  outline: 2px solid var(--excel-green-light);
+  outline-offset: 2px;
+}
+:where(input, select, textarea):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* --- Ribbon --- */
+.ribbon-top-bar {
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: 6px var(--gutter);
+}
+.excel-logo-area { flex-shrink: 0; min-width: 0; }
+.app-title { white-space: nowrap; }
+.view-mode-btn,
+.ux-mode-btn { white-space: nowrap; }
+.view-mode-btn.active svg { color: var(--excel-green-light); }
+.view-mode-btn:not(.active) svg { color: var(--text-muted); }
+.ux-mode-toggle { flex-shrink: 0; }
+
+.ribbon-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ribbon-actions .excel-icon,
+.user-profile-pill .excel-icon { color: var(--excel-green-light); }
+
+.conn-trigger-btn {
+  min-width: 0;
+  max-width: 340px;
+  min-height: 26px;
+  flex-shrink: 1;
+}
+.conn-trigger-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ribbon-guide-btn {
+  padding: 0 12px;
+  font-size: 12.5px;
+  gap: 6px;
+  height: 34px;
+}
+.user-profile-pill { min-width: 0; flex-shrink: 0; }
+.ribbon-guide-btn { flex-shrink: 0; }
+.user-profile-name {
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ribbon-tabs {
+  padding: 0 var(--gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ribbon-tabs::-webkit-scrollbar { display: none; }
+.ribbon-tab { white-space: nowrap; flex-shrink: 0; }
+.ribbon-tab--cta {
+  margin-left: auto;
+  color: var(--excel-green-light);
+  font-weight: 600;
+}
+
+.ribbon-controls {
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  padding: 10px var(--gutter);
+}
+.control-group { flex-wrap: wrap; min-width: 0; }
+.control-group--dropdown { position: relative; }
+.ribbon-page-indicator {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.ribbon-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  width: min(280px, calc(100vw - 24px));
+  max-height: min(320px, 60dvh);
+  background-color: var(--excel-bg-header);
+  border: 1px solid var(--excel-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+}
+.ribbon-dropdown-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--excel-border);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.ribbon-dropdown-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+.ribbon-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px 2px;
+  border-radius: var(--radius-sm);
+  min-height: 28px;
+}
+.ribbon-dropdown-item:hover { background-color: rgba(255, 255, 255, 0.04); }
+.ribbon-dropdown-item.checked { color: var(--text-primary); }
+.ribbon-dropdown-item input { accent-color: var(--excel-green-light); cursor: pointer; flex-shrink: 0; }
+
+.ribbon-about {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  width: 100%;
+}
+.ribbon-about-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  align-items: center;
+}
+.ribbon-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* --- Hoja (explorador) --- */
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: 10px var(--gutter);
+  border-bottom: 1px solid var(--excel-border);
+  background-color: var(--excel-bg-app);
+  flex-shrink: 0;
+}
+.sheet-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.sheet-header-title h2 {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+  line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-header-text { min-width: 0; }
+.sheet-header-meta {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+/* Registros / Estructura como control segmentado */
+.sheet-view-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  flex-shrink: 0;
+  background-color: var(--excel-bg-app);
+  border: 1px solid var(--excel-border);
+  border-radius: 10px;
+}
+.sheet-view-toggle .excel-btn {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-secondary);
+  border-radius: 7px;
+  min-height: 30px;
+}
+.sheet-view-toggle .excel-btn:hover:not(:disabled) {
+  background-color: var(--surface-raised);
+  border-color: transparent;
+  box-shadow: none;
+}
+.sheet-view-toggle .excel-btn.primary {
+  background-color: var(--excel-bg-active);
+  color: #ffffff;
+  box-shadow: var(--shadow-sm), inset 0 0 0 1px #2c3850;
+}
+.sheet-view-toggle .excel-btn.primary svg { color: var(--excel-green-light); }
+
+.filter-section {
+  border-bottom: 1px solid var(--excel-border);
+  padding: 10px var(--gutter);
+  background-color: var(--excel-bg-app);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  /* En pantallas bajas el panel de filtros se desplaza en lugar de tapar/recortar la grilla */
+  max-height: 60%;
+  overflow-y: auto;
+}
+.filter-section-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.filter-section-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+.filter-active-pill { max-width: 100%; min-width: 0; }
+.filter-active-pill > span { min-width: 0; overflow-wrap: anywhere; }
+.filter-result-count {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.filter-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  align-items: end;
+  gap: var(--space-3);
+  background-color: var(--excel-bg-header);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--excel-border);
+  max-width: 1100px;
+}
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.filter-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.filter-control { width: 100%; }
+.filter-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.data-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  min-height: 220px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+.empty-icon { width: 36px; height: 36px; color: var(--text-muted); }
+
+.schema-view { padding: clamp(12px, 2vw, 24px); }
+.schema-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.excel-search-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.schema-search-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.schema-search-input { flex: 1 1 180px; max-width: 320px; }
+.schema-tip {
+  flex: 1 1 340px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-style: italic;
+  background-color: var(--excel-bg-sidebar);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--excel-border);
+}
+.schema-col-name { font-weight: 600; color: var(--text-primary); }
+.schema-table td:last-child { min-width: 360px; }
+.fk-inline-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.fk-inline-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.fk-inline-block--divider {
+  border-top: 1px dashed var(--excel-border);
+  padding-top: var(--space-2);
+  margin-top: 4px;
+}
+.fk-inline-label--sm { font-size: 10px; min-width: 0; }
+.fk-inline-hint { font-size: 11px; color: var(--text-secondary); }
+.fk-filter-input { width: min(180px, 100%); }
+.fk-display-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  background-color: var(--excel-bg-app);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--excel-border);
+  max-width: 100%;
+}
+.fk-display-col {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  user-select: none;
+  min-height: 24px;
+}
+.fk-display-col.checked { color: var(--text-primary); }
+.fk-info-text { min-width: 0; font-weight: 500; }
+.fk-info-text.is-disabled { opacity: 0.5; }
+.fk-relation-cell { flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+.fk-relation-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* --- Pestañas de hojas y barra de estado --- */
+.sheet-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  height: 100%;
+}
+.sheet-nav-btn {
+  border: none;
+  padding: 4px 6px;
+  min-height: 0;
+  height: 100%;
+}
+.sheet-tabs-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-left: 10px;
+  font-style: italic;
+  white-space: nowrap;
+}
+.status-left,
+.status-right { min-width: 0; white-space: nowrap; }
+.status-left { overflow: hidden; text-overflow: ellipsis; }
+.status-sep { color: rgba(255, 255, 255, 0.5); }
+
+/* --- Reportes personalizados --- */
+.cr-top-header {
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: 10px var(--gutter);
+}
+.cr-title-area { min-width: 0; flex: 1 1 320px; flex-wrap: wrap; }
+.cr-title-edit-box { min-width: 0; }
+.cr-report-title,
+.cr-report-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cr-badge-tag { white-space: nowrap; }
+.cr-header-rows-badge { margin-left: 0; white-space: nowrap; }
+.cr-header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.cr-header-divider {
+  height: 20px;
+  width: 1px;
+  background-color: var(--excel-border);
+  margin: 0 4px;
+}
+.cr-view-pill { white-space: nowrap; min-height: 26px; }
+.cr-error-banner { flex-wrap: wrap; padding: 8px var(--gutter); }
+.cr-error-banner > span { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.cr-assistant-banner {
+  margin: var(--space-2) 14px 0;
+  flex-shrink: 0;
+}
+
+.cr-card-header { flex-wrap: wrap; gap: var(--space-2); }
+.cr-card-title { min-width: 0; }
+.cr-card-title h3 { line-height: 1.3; }
+.cr-step-number { flex-shrink: 0; }
+.cr-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.cr-label--flush { margin: 0; }
+.cr-muted-text { font-size: 11.5px; color: var(--text-muted); }
+.cr-empty-inline {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cr-filter-count { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+.cr-suggestion-item { flex-wrap: wrap; }
+.cr-sug-info { flex: 1 1 160px; min-width: 0; }
+.cr-sug-desc { overflow-wrap: anywhere; }
+.cr-sug-actions { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; }
+
+.cr-join-header { flex-wrap: wrap; }
+.cr-join-type-select { flex: 1 1 160px; min-width: 0; }
+.cr-field-row { flex-wrap: wrap; }
+.cr-join-target-select { flex: 1 1 160px; min-width: 0; }
+.cr-on-table-select,
+.cr-on-col-select { flex: 1 1 120px; min-width: 0; }
+.cr-replace-field { flex-wrap: wrap; }
+.cr-replace-field label { min-width: 0; flex: 0 0 auto; }
+.cr-replace-select { flex: 1 1 160px; min-width: 0; }
+.cr-replace-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: 2px;
+}
+.cr-replace-done { font-size: 11px; color: var(--excel-green-light); font-weight: 600; }
+.cr-add-join-btn {
+  width: 100%;
+  padding: 8px;
+  margin-top: 4px;
+  background-color: rgba(16, 124, 65, 0.08);
+  border-color: var(--excel-green);
+  color: var(--excel-green-light);
+  font-weight: 600;
+  white-space: normal;
+}
+
+.cr-col-order-header { flex-wrap: wrap; }
+.cr-col-order-meta { flex: 1 1 150px; }
+.cr-col-order-origin {
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+.cr-col-order-badge { flex-shrink: 0; }
+.cr-col-order-name { min-width: 0; flex: 1 1 auto; }
+.cr-col-order-actions { flex-shrink: 0; }
+.cr-col-btn { min-height: 24px; min-width: 24px; }
+.cr-col-alias-box--flush { padding-left: 0; margin-top: 2px; }
+.cr-col-as-text { white-space: nowrap; font-size: 10px; }
+.cr-alias-input { min-width: 0; }
+.cr-col-checkbox-label { min-width: 0; }
+.cr-col-checkbox-label input { accent-color: var(--excel-green-light); cursor: pointer; flex-shrink: 0; }
+.cr-col-orig-name { min-width: 0; overflow-wrap: anywhere; }
+
+.cr-rule-row { flex-wrap: wrap; }
+.cr-rule-table-select { width: auto; flex: 1 1 110px; min-width: 0; }
+.cr-rule-col-select { flex: 2 1 140px; }
+.cr-rule-op-select { width: auto; flex: 1 1 130px; min-width: 0; }
+.cr-rule-val-input { flex: 1 1 110px; }
+.cr-logic-select { width: auto; min-width: 100px; }
+
+.cr-results-toolbar {
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: 8px var(--gutter);
+}
+.cr-results-stats { flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.cr-results-actions { flex-wrap: wrap; }
+.cr-stat-pill { white-space: nowrap; }
+.cr-stat-pill--accent {
+  background-color: rgba(16, 124, 65, 0.2);
+  color: var(--excel-green-light);
+  border-color: rgba(16, 124, 65, 0.4);
+  font-weight: 600;
+}
+.cr-sql-viewer { padding: 10px var(--gutter); }
+.cr-sql-header { flex-wrap: wrap; gap: var(--space-2); }
+.cr-pagination-bar {
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: 6px var(--gutter);
+}
+.cr-pagination-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cr-pagination-label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.cr-empty-results .excel-btn { margin-top: var(--space-3); }
+
+.cr-template-list { display: flex; flex-direction: column; gap: 10px; }
+.cr-template-item { flex-wrap: wrap; gap: 10px; }
+.cr-template-info { flex: 1 1 220px; min-width: 0; }
+.cr-template-name { font-size: 13px; color: var(--text-primary); margin: 0; overflow-wrap: anywhere; }
+.cr-template-desc { font-size: 11.5px; color: var(--text-secondary); margin: 3px 0 0; }
+.cr-template-date { font-size: 10.5px; color: var(--text-muted); margin-top: 4px; display: inline-block; }
+.cr-template-actions { display: flex; gap: 6px; align-items: center; }
+
+/* --- Modales genéricos --- */
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.modal-header { gap: var(--space-3); }
+.modal-footer { flex-wrap: wrap; }
+.modal-body--stack { display: flex; flex-direction: column; gap: 14px; }
+.modal-empty { text-align: center; padding: 30px; color: var(--text-muted); }
+.modal-message { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+.form-control-block { width: 100%; margin-top: 4px; }
+.form-textarea { min-height: 70px; resize: vertical; }
+.excel-btn.danger-btn {
+  background-color: #c9302c;
+  border-color: #c9302c;
+  color: #ffffff;
+}
+.excel-btn.danger-btn:hover:not(:disabled) {
+  background-color: #d9534f;
+  border-color: #d9534f;
+}
+.excel-btn.primary,
+.confirm-modal-card .excel-btn.primary { color: #ffffff; }
+
+.dba-modal-header { gap: var(--space-3); padding: 14px var(--gutter); }
+.dba-modal-title { min-width: 0; flex-wrap: wrap; }
+.dba-modal-body { padding: clamp(14px, 2.4vw, 24px); }
+.dba-footer { padding: 12px var(--gutter); }
+.dba-metric-empty { color: var(--text-muted); font-style: italic; }
+.dba-file-table { table-layout: fixed; }
+.dba-td-name { max-width: none; }
+.manual-tab-content { min-width: 0; }
+.manual-tab-sidebar { overflow-y: auto; }
+.manual-tips-row { flex-wrap: wrap; gap: var(--space-2); }
+
+.conn-tabs { overflow-x: auto; scrollbar-width: none; padding: 8px var(--gutter); }
+.conn-tab { min-width: 0; flex-shrink: 0; white-space: nowrap; }
+.conn-modal-header { gap: var(--space-3); }
+.conn-header-title-area { min-width: 0; }
+.conn-modal-footer { flex-wrap: wrap; gap: var(--space-2); }
+.conn-footer-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.conn-saved-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conn-saved-delete-btn { min-width: 32px; min-height: 32px; }
+
+
+/* ==========================================================================
+   RESPONSIVE (mobile-first por contenido). Breakpoints:
+   ≤1279 notebook · ≤1023 tablet grande · ≤767 tablet · ≤599 móvil grande
+   ≤479 móvil estándar · ≤374 móvil pequeño · alto ≤500 horizontal
+   ≥2400 QHD/4K escalado
+   ========================================================================== */
+
+@media (max-width: 1599px) {
+  .conn-trigger-btn { max-width: 220px; }
+  .user-profile-name { max-width: 130px; }
+  .ux-label-long { display: none; }
+  .ux-label-short { display: inline; }
+  .view-mode-btn { padding: 6px 12px; }
+}
+
+@media (max-width: 1279px) {
+  .app-title-suffix { display: none; }
+  .ux-label-long { display: none; }
+  .ux-label-short { display: inline; }
+  .conn-trigger-btn { max-width: 240px; }
+  .user-profile-name { max-width: 110px; }
+
+  /* Constructor: 2 columnas, el panel de filtros pasa abajo a ancho completo */
+  .cr-builder-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(440px, 1fr) auto;
+    overflow-y: auto;
+  }
+  .cr-builder-layout > .cr-panel-card:nth-child(3) {
+    grid-column: 1 / -1;
+    min-height: 240px;
+  }
+  .cr-header-divider { display: none; }
+}
+
+@media (max-width: 1023px) {
+  .ribbon-tab--cta { display: none; }
+  .ribbon-controls { gap: var(--space-2) var(--space-4); }
+  .conn-trigger-btn { max-width: 200px; }
+}
+
+@media (max-width: 860px) {
+  /* Constructor en una sola columna desplazable */
+  .cr-builder-layout {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--space-2);
+    gap: var(--space-3);
+  }
+  .cr-builder-layout > .cr-panel-card {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+  .cr-builder-layout > .cr-columns-panel {
+    height: min(75dvh, 640px);
+    min-height: 360px;
+  }
+  .cr-builder-layout > .cr-panel-card:nth-child(3) { min-height: 0; }
+  .cr-filters-section,
+  .cr-sorts-section { flex: 0 0 auto; overflow: visible; }
+  .cr-joins-list { overflow: visible; flex: 0 0 auto; }
+}
+
+@media (max-width: 767px) {
+  /* Ribbon: fila 1 marca + acciones, fila 2 vista + modo (el modo ya NO se oculta) */
+  .ribbon-top-bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px var(--space-2);
+    padding: 6px var(--space-2);
+  }
+  .excel-logo-area { grid-column: 1; grid-row: 1; }
+  .ribbon-actions { grid-column: 2 / -1; grid-row: 1; justify-content: flex-end; }
+  .view-mode-switcher {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    display: flex;
+    min-width: 0;
+  }
+  .ux-mode-toggle { grid-column: 3; grid-row: 2; align-self: stretch; }
+  .ux-mode-btn { justify-content: center; padding: 4px 10px; }
+  .view-mode-btn { flex: 1; justify-content: center; padding: 6px; }
+  .db-status { display: none; }
+  .conn-trigger-btn { max-width: 160px; }
+
+  .ribbon-tab { padding: 6px 10px; font-size: 12px; margin-top: 2px; }
+  .ribbon-controls { padding: var(--space-2); gap: var(--space-2) var(--space-3); }
+  .control-group { border-right: none; padding-right: 0; gap: 6px; }
+  .ribbon-about-stats { gap: var(--space-2) var(--space-4); }
+
+  .sheet-header { padding: var(--space-2); }
+  .filter-section { padding: var(--space-2); }
+  .worksheet-tabs-bar { padding: 0 var(--space-2); height: 38px; gap: 6px; }
+  .sheet-tab { padding: 0 10px; font-size: 11.5px; gap: 4px; }
+  .excel-grid thead th:not(:first-child) { min-width: 110px; }
+  .excel-grid td { max-width: 60vw; }
+
+  /* Reportes */
+  .cr-top-header { padding: var(--space-2); }
+  .cr-badge-tag { display: none; }
+  .cr-title-area { flex-basis: 100%; }
+  .cr-header-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+  .cr-header-actions .excel-btn { min-width: 0; padding: 5px 6px; font-size: 11px; white-space: normal; line-height: 1.2; }
+  .cr-header-actions > .cr-view-pills,
+  .cr-header-actions > .excel-btn.primary { grid-column: 1 / -1; }
+  .cr-view-pills { width: 100%; }
+  .cr-view-pill { flex: 1; justify-content: center; }
+  .cr-assistant-banner { margin: var(--space-2) var(--space-2) 0; padding: 6px 10px; }
+  .cr-assistant-banner .ux-friendly-banner-text { font-size: 11.5px; }
+
+  .cr-results-toolbar { padding: var(--space-2); }
+  .cr-results-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    width: 100%;
+  }
+  .cr-results-actions .excel-btn { white-space: normal; line-height: 1.2; padding: 5px 6px; font-size: 11px; }
+  .cr-pagination-bar { padding: 6px var(--space-2); }
+  .cr-pagination-range { order: 3; flex-basis: 100%; text-align: center; font-size: 11px; }
+  .cr-pagination-pager { margin-left: auto; }
+
+  /* Guía: las secciones pasan a una barra horizontal superior */
+  .dba-modal-body--split { flex-direction: column; min-height: 0; }
+  .manual-tab-sidebar {
+    width: auto;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 0;
+    gap: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--excel-border);
+  }
+  .manual-tab-btn {
+    width: auto;
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 10px 14px;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+  }
+  .manual-tab-btn.active { border-bottom-color: var(--excel-green); }
+  .manual-tab-content { padding: var(--space-4); }
+
+  .modal-backdrop,
+  .dba-modal-overlay,
+  .conn-modal-overlay { padding: var(--space-2); }
+  .modal-card,
+  .dba-modal,
+  .conn-modal-card { max-height: calc(100dvh - 16px); }
+  .conn-engine-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .conn-form-grid { grid-template-columns: 1fr 1fr; }
+  .conn-form-col.span-2,
+  .conn-form-col.full { grid-column: span 2; }
+}
+
+@media (max-width: 599px) {
+  .label-long { display: none; }
+  .label-short { display: inline; }
+  .ribbon-controls .btn-label { display: none; }
+  .ribbon-controls .control-label { display: none; }
+  .ribbon-controls .excel-btn { padding: 6px 10px; }
+  .ribbon-about .excel-btn { width: 100%; }
+  .status-hide-sm { display: none; }
+  .sheet-search-box { width: 112px; }
+  .cr-results-stats .cr-stat-pill:not(.cr-stat-pill--accent) { display: none; }
+  .cr-pagination-bar .btn-label { display: none; }
+  .cr-col-btn .btn-label { display: none; }
+}
+
+@media (max-width: 899px) {
+  .status-hide-md { display: none; }
+}
+
+@media (max-width: 479px) {
+  .app-title { display: none; }
+  .ribbon-guide-btn .btn-label { display: none; }
+  .user-profile-name { display: none; }
+  .conn-trigger-btn { max-width: none; }
+  .ribbon-actions { gap: 6px; }
+
+  .toast-container {
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: 100%;
+  }
+  .conn-engine-grid { grid-template-columns: repeat(2, 1fr); }
+  .conn-form-grid { grid-template-columns: 1fr; }
+  .conn-form-col.span-2,
+  .conn-form-col.full { grid-column: span 1; }
+  .conn-modal-subtitle { display: none; }
+  .conn-modal-footer { flex-direction: column-reverse; align-items: stretch; }
+  .conn-footer-actions { margin-left: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  .conn-modal-footer .excel-btn { white-space: normal; line-height: 1.2; }
+  .conn-modal-footer .excel-btn { width: 100%; justify-content: center; }
+  .modal-footer .excel-btn { flex: 1 1 auto; }
+  .cr-stat-total-card { padding: 2px 8px; }
+  .cr-stat-total-num { font-size: 12px; }
+  .fk-relation-cell { align-items: flex-start; }
+}
+
+@media (max-width: 374px) {
+  .sheet-search-box { width: 92px; }
+  .sheet-nav { display: none; }
+  .ux-mode-btn,
+  .view-mode-btn { font-size: 10.5px; gap: 4px; }
+  .cr-header-actions .excel-btn svg { display: none; }
+}
+
+/* Teléfonos en horizontal / ventanas muy bajas: recuperar alto para los datos */
+@media (max-height: 500px) and (max-width: 1023px) {
+  .ribbon-top-bar {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .ribbon-top-bar::-webkit-scrollbar { display: none; }
+  .ux-mode-toggle,
+  .view-mode-switcher { width: auto; flex-shrink: 0; }
+  .app-title { display: none; }
+  .ribbon-controls { padding-block: 6px; }
+  .sheet-header,
+  .filter-section { padding-block: 6px; }
+  .status-bar { display: none; }
+  .cr-builder-layout > .cr-columns-panel { height: 85dvh; min-height: 0; }
+  .ribbon-dropdown { max-height: 45dvh; }
+  .filter-section { max-height: 70%; }
+}
+
+/* Pantallas táctiles: objetivos de toque ≥ 34–36 px */
+@media (pointer: coarse) {
+  :root {
+    --control-h: 36px;
+    --control-h-sm: 32px;
+  }
+  .cr-icon-btn,
+  .fk-action-btn,
+  .cr-col-btn,
+  .modal-close-btn,
+  .modal-close,
+  .dba-close-btn,
+  .conn-close-btn,
+  .toast-close-btn,
+  .user-logout-btn,
+  .filter-clear-btn {
+    min-width: 32px;
+    min-height: 32px;
+  }
+  .excel-btn--xs { min-height: 30px; }
+  .ribbon-guide-btn,
+  .conn-trigger-btn,
+  .user-profile-pill { min-height: 36px; }
+  .view-mode-btn,
+  .ux-mode-btn,
+  .cr-view-pill,
+  .fk-mode-btn { min-height: 32px; }
+  .ribbon-dropdown-item { min-height: 36px; }
+}
+
+/* QHD / 4K: escalar toda la interfaz para mantener legibilidad y proporción */
+@media (min-width: 2400px) {
+  html { zoom: 1.2; }
+}
+@media (min-width: 3200px) {
+  html { zoom: 1.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+  .modal-backdrop, .modal-card, .dba-modal-overlay, .dba-modal,
+  .login-screen, .login-alert, .conn-modal-overlay, .conn-modal-card,
+  .toast-card, .fk-inline-form, .filter-active-pill {
+    animation: none !important;
+  }
+}
+
+/* Indicador "Listo" de la barra de estado */
+.status-left > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-body);
+}
+.status-left > span:first-child::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--excel-green-light);
+  box-shadow: 0 0 0 3px rgba(33, 163, 102, 0.18);
+}

@@ -70,10 +70,10 @@ function FilterBar({ active, columns, appliedFilter, activeTable, onApplyFilter,
   if (!active) return null;
 
   return (
-    <div className="filter-section" style={{ borderBottom: '1px solid var(--excel-border)', padding: '10px 16px', backgroundColor: 'var(--excel-bg-sidebar)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <div className="filter-section">
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="filter-section-bar">
+        <div className="filter-section-main">
           <button
             className={`excel-btn ${showFilterPanel ? 'primary' : ''}`}
             onClick={() => {
@@ -83,6 +83,7 @@ function FilterBar({ active, columns, appliedFilter, activeTable, onApplyFilter,
               }
             }}
             title="Abrir o cerrar el panel de filtros de fila"
+            aria-expanded={showFilterPanel}
           >
             <Filter size={14} />
             {showFilterPanel ? 'Ocultar Filtros' : 'Filtrar Registros'}
@@ -108,20 +109,19 @@ function FilterBar({ active, columns, appliedFilter, activeTable, onApplyFilter,
         </div>
 
         {appliedFilter && appliedFilter.column && (
-          <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+          <span className="filter-result-count">
             Mostrando {dataLength} de {totalRows} registros coincidentes.
           </span>
         )}
       </div>
 
       {showFilterPanel && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'var(--excel-border)', padding: '12px', borderRadius: '4px', flexWrap: 'wrap', border: '1px solid var(--excel-border)' }}>
+        <div className="filter-panel">
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Columna:</span>
+          <label className="filter-field">
+            <span className="filter-field-label">Columna</span>
             <select
-              className="excel-input"
-              style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '150px' }}
+              className="excel-input filter-control"
               value={tempFilterColumn}
               onChange={(e) => setTempFilterColumn(e.target.value)}
             >
@@ -129,13 +129,12 @@ function FilterBar({ active, columns, appliedFilter, activeTable, onApplyFilter,
                 <option key={col.name} value={col.name}>{col.name}</option>
               ))}
             </select>
-          </div>
+          </label>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Condición:</span>
+          <label className="filter-field">
+            <span className="filter-field-label">Condición</span>
             <select
-              className="excel-input"
-              style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '150px' }}
+              className="excel-input filter-control"
               value={tempFilterOperator}
               onChange={(e) => setTempFilterOperator(e.target.value)}
             >
@@ -149,16 +148,15 @@ function FilterBar({ active, columns, appliedFilter, activeTable, onApplyFilter,
               <option value="IS NULL">Vacío (NULL)</option>
               <option value="IS NOT NULL">No Vacío (NOT NULL)</option>
             </select>
-          </div>
+          </label>
 
           {tempFilterOperator === 'BETWEEN' ? (
             <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Desde:</span>
+              <label className="filter-field">
+                <span className="filter-field-label">Desde</span>
                 <input
                   type="text"
-                  className="excel-input"
-                  style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '120px', cursor: 'text' }}
+                  className="excel-input filter-control"
                   placeholder="Valor inicial..."
                   value={tempFilterValue}
                   onChange={(e) => setTempFilterValue(e.target.value)}
@@ -166,13 +164,12 @@ function FilterBar({ active, columns, appliedFilter, activeTable, onApplyFilter,
                     if (e.key === 'Enter') handleApplyFilter();
                   }}
                 />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Hasta:</span>
+              </label>
+              <label className="filter-field">
+                <span className="filter-field-label">Hasta</span>
                 <input
                   type="text"
-                  className="excel-input"
-                  style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '120px', cursor: 'text' }}
+                  className="excel-input filter-control"
                   placeholder="Valor final..."
                   value={tempFilterValue2}
                   onChange={(e) => setTempFilterValue2(e.target.value)}
@@ -180,15 +177,14 @@ function FilterBar({ active, columns, appliedFilter, activeTable, onApplyFilter,
                     if (e.key === 'Enter') handleApplyFilter();
                   }}
                 />
-              </div>
+              </label>
             </>
           ) : !isUnaryOperator(tempFilterOperator) && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Valor:</span>
+            <label className="filter-field">
+              <span className="filter-field-label">Valor</span>
               <input
                 type="text"
-                className="excel-input"
-                style={{ height: '30px', padding: '0 8px', fontSize: '12px', minWidth: '180px', cursor: 'text' }}
+                className="excel-input filter-control"
                 placeholder="Ej: valor de búsqueda..."
                 value={tempFilterValue}
                 onChange={(e) => setTempFilterValue(e.target.value)}
@@ -196,13 +192,12 @@ function FilterBar({ active, columns, appliedFilter, activeTable, onApplyFilter,
                   if (e.key === 'Enter') handleApplyFilter();
                 }}
               />
-            </div>
+            </label>
           )}
 
-          <div style={{ display: 'flex', gap: '8px', alignSelf: 'flex-end', marginTop: '16px' }}>
+          <div className="filter-actions">
             <button
               className="excel-btn primary"
-              style={{ height: '30px', padding: '0 16px', fontSize: '12px' }}
               onClick={handleApplyFilter}
               disabled={
                 !tempFilterColumn ||
@@ -215,7 +210,6 @@ function FilterBar({ active, columns, appliedFilter, activeTable, onApplyFilter,
             </button>
             <button
               className="excel-btn"
-              style={{ height: '30px', padding: '0 12px', fontSize: '12px' }}
               onClick={handleClearFilter}
               title="Restablecer filtros y mostrar todos los registros"
             >
@@ -338,29 +332,42 @@ export default function Spreadsheet({
   return (
     <div className="spreadsheet-container">
       {/* Vista de cabecera de la hoja */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--excel-border)', backgroundColor: 'var(--excel-bg-sidebar)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div className="sheet-header">
+        <div className="sheet-header-title">
           {uxMode === 'advanced' && <span className="schema-badge">{activeTable.schema}</span>}
-          <h2 style={{ fontSize: '18px', fontWeight: 600 }}>{activeTable.name}</h2>
+          <div className="sheet-header-text">
+            <h2 title={`${activeTable.schema}.${activeTable.name}`}>{activeTable.name}</h2>
+            <p className="sheet-header-meta">
+              {isDataLoading
+                ? 'Cargando registros…'
+                : `${(totalRows || 0).toLocaleString('es-CL')} ${totalRows === 1 ? 'registro' : 'registros'}${appliedFilter && appliedFilter.column ? ' · con filtro aplicado' : ''}`}
+            </p>
+          </div>
         </div>
         
         {/* Pestañas de Vista: Registros / Estructura */}
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="sheet-view-toggle" role="tablist">
           <button 
+            role="tab"
+            aria-selected={activeTab === 'data'}
             className={`excel-btn ${activeTab === 'data' ? 'primary' : ''}`}
             onClick={() => setActiveTab('data')}
             title="Ver y explorar los registros de la tabla actual estilo Excel"
           >
             <FileSpreadsheet size={14} />
-            Hojas de Registros
+            <span className="label-long">Hojas de Registros</span>
+            <span className="label-short">Registros</span>
           </button>
           <button 
+            role="tab"
+            aria-selected={activeTab === 'schema'}
             className={`excel-btn ${activeTab === 'schema' ? 'primary' : ''}`}
             onClick={() => setActiveTab('schema')}
             title="Administrar la estructura de columnas y configurar traducciones de Claves Foráneas (FK)"
           >
             <Table size={14} />
-            Estructura de Columnas
+            <span className="label-long">Estructura de Columnas</span>
+            <span className="label-short">Estructura</span>
           </button>
         </div>
       </div>
@@ -405,7 +412,7 @@ export default function Spreadsheet({
                 <thead>
                   <tr>
                     {/* Celda de esquina superior izquierda de Excel */}
-                    <th style={{ width: '50px' }}></th>
+                    <th aria-label="Número de fila"></th>
                     {Object.keys(data[0]).map((colName, index) => {
                       const fk = fkByColumn.get(colName);
                       let thTitle = `Columna física: ${colName}`;
@@ -415,10 +422,13 @@ export default function Spreadsheet({
                           thTitle += ` filtrado por: ${fk.filterColumn} = '${fk.filterValue}'`;
                         }
                       }
+                      // Solo presentación: el encabezado de una columna numérica se alinea a la
+                      // derecha igual que sus cifras (misma regla que .cell-numeric de las celdas).
+                      const isNumericCol = !fk && typeof data[0][colName] === 'number';
                       return (
                         <th
                           key={colName}
-                          style={{ minWidth: '150px' }}
+                          className={isNumericCol ? 'th-numeric' : undefined}
                           title={thTitle}
                         >
                           <span className="col-letter">{getColumnLabel(index)}</span>
@@ -445,7 +455,7 @@ export default function Spreadsheet({
                           let cellContent;
                           let cellTitle;
                           if (fk && fkDisplayMode !== 'id') {
-                            const idText = isNull ? 'NULL' : String(val);
+                            const idText = isNull ? (uxMode === 'simple' ? '—' : 'NULL') : String(val);
                             const realText = fkStatusText(fkResolutions[colName]?.[rowIndex]);
                             if (fkDisplayMode === 'real') {
                               cellContent = realText ?? (isNull ? '—' : idText);
@@ -454,8 +464,11 @@ export default function Spreadsheet({
                             }
                             cellTitle = cellContent;
                           } else {
-                            cellContent = isNull ? 'NULL' : String(val);
-                            cellTitle = cellContent;
+                            // Solo presentación: en Modo Fácil un vacío se muestra como "—"
+                            // (más comprensible que NULL); el Modo DBA conserva NULL.
+                            const nullText = uxMode === 'simple' ? '—' : 'NULL';
+                            cellContent = isNull ? nullText : String(val);
+                            cellTitle = isNull && uxMode === 'simple' ? 'Sin dato' : cellContent;
                           }
 
                           return (
@@ -478,17 +491,17 @@ export default function Spreadsheet({
         )}
 
         {!isDataLoading && !error && activeTab === 'schema' && (
-          <div style={{ padding: '24px' }}>
+          <div className="schema-view">
             {/* Buscador de Columnas Resiliente a Espacios y Guiones Bajos */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-              <div className="excel-search-bar" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            <div className="schema-toolbar">
+              <div className="excel-search-bar">
+                <label className="schema-search-label" htmlFor="schema-search-input">
                   Buscar Columna:
-                </span>
+                </label>
                 <input
+                  id="schema-search-input"
                   type="text"
-                  className="excel-input"
-                  style={{ width: '250px', height: '30px', padding: '4px 8px', fontSize: '12px', cursor: 'text' }}
+                  className="excel-input schema-search-input"
                   placeholder="Ej: depto id o nombre_cliente..."
                   value={schemaSearchQuery}
                   onChange={(e) => setSchemaSearchQuery(e.target.value)}
@@ -496,8 +509,7 @@ export default function Spreadsheet({
                 />
                 {schemaSearchQuery && (
                   <button 
-                    className="excel-btn" 
-                    style={{ height: '30px', padding: '0 12px', fontSize: '11px', backgroundColor: 'var(--excel-border)', color: 'var(--text-primary)' }}
+                    className="excel-btn"
                     onClick={() => setSchemaSearchQuery('')}
                     title="Limpiar el término de búsqueda actual para mostrar todas las columnas"
                   >
@@ -505,7 +517,7 @@ export default function Spreadsheet({
                   </button>
                 )}
               </div>
-              <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontStyle: 'italic', backgroundColor: 'var(--excel-bg-sidebar)', padding: '6px 12px', borderRadius: '4px', border: '1px solid var(--excel-border)' }}>
+              <span className="schema-tip">
                 💡 <strong>Consejo:</strong> Vincula columnas de códigos/IDs a otras tablas auxiliares para traducirlos a nombres descriptivos reales en la grilla y en el reporte de Excel.
               </span>
             </div>
@@ -514,7 +526,7 @@ export default function Spreadsheet({
               <table className="schema-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '50px' }}></th>
+                    <th aria-label="Número"></th>
                     <th title="Nombre técnico de la columna en la base de datos SQL Server">Nombre de la Columna</th>
                     <th title="Tipo de dato físico de la columna (ej: int, varchar, datetime)">Tipo de Dato</th>
                     <th title="Longitud de caracteres máxima de la columna (si aplica)">Longitud Máxima</th>
@@ -528,7 +540,7 @@ export default function Spreadsheet({
                     return (
                       <tr key={col.name}>
                         <td className="row-number">{index + 1}</td>
-                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{col.name}</td>
+                        <td className="schema-col-name">{col.name}</td>
                         <td><span className="schema-type">{col.type}</span></td>
                         <td>{col.size > 0 ? col.size : '-'}</td>
                         <td>
@@ -538,8 +550,8 @@ export default function Spreadsheet({
                         </td>
                         <td>
                           {editingColName === col.name ? (
-                            <div className="fk-inline-form" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <div className="fk-inline-form">
+                              <div className="fk-inline-row">
                                 {/* Dropdown de Tablas Reales */}
                                 <span className="fk-inline-label">Tabla:</span>
                                 <select
@@ -583,6 +595,7 @@ export default function Spreadsheet({
                                 {/* Guardar / Cancelar */}
                                 <button
                                   className="fk-action-btn save"
+                                  aria-label="Guardar relación"
                                   title="Guardar esta relación y aplicarla inmediatamente a los datos de la grilla"
                                   onClick={() => {
                                     if (!selectedTargetTableKey || !selectedTargetColumn) return;
@@ -605,6 +618,7 @@ export default function Spreadsheet({
                                 </button>
                                 <button
                                   className="fk-action-btn cancel"
+                                  aria-label="Cancelar"
                                   title="Cancelar los cambios y cerrar el formulario de vinculación"
                                   onClick={() => setEditingColName(null)}
                                 >
@@ -614,16 +628,16 @@ export default function Spreadsheet({
 
                               {/* Selección de Valores a Mostrar */}
                               {columnsOfTargetTable.length > 0 && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
-                                  <span className="fk-inline-label" style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Valores a Mostrar (Varios para Concatenar):</span>
+                                <div className="fk-inline-block">
+                                  <span className="fk-inline-label fk-inline-label--sm">Valores a Mostrar (Varios para Concatenar):</span>
                                   <div 
-                                    style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: 'var(--excel-bg-app)', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--excel-border)', maxWidth: '500px' }}
+                                    className="fk-display-cols"
                                     title="Marca una o más columnas descriptivas para mostrar en la grilla y el reporte final (ej. si marcas 'nombre' y 'jornal', se verá 'Jefe - $1200')"
                                   >
                                     {columnsOfTargetTable.map(c => {
                                       const isChecked = selectedDisplayColumns.includes(c.name);
                                       return (
-                                        <label key={c.name} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', cursor: 'pointer', color: isChecked ? 'var(--text-primary)' : 'var(--text-secondary)', userSelect: 'none' }}>
+                                        <label key={c.name} className={`fk-display-col ${isChecked ? 'checked' : ''}`}>
                                           <input
                                             type="checkbox"
                                             checked={isChecked}
@@ -634,7 +648,6 @@ export default function Spreadsheet({
                                                 setSelectedDisplayColumns(selectedDisplayColumns.filter(item => item !== c.name));
                                               }
                                             }}
-                                            style={{ cursor: 'pointer' }}
                                           />
                                           {c.name}
                                         </label>
@@ -646,15 +659,14 @@ export default function Spreadsheet({
 
                               {/* Filtro Discriminador (Opcional) */}
                               {columnsOfTargetTable.length > 0 && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', borderTop: '1px dashed var(--excel-border)', paddingTop: '8px', marginTop: '4px' }}>
-                                  <span className="fk-inline-label" style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Filtro Discriminador (Opcional - para IDs duplicados en tablas compartidas):</span>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Columna Filtro:</span>
+                                <div className="fk-inline-block fk-inline-block--divider">
+                                  <span className="fk-inline-label fk-inline-label--sm">Filtro Discriminador (Opcional - para IDs duplicados en tablas compartidas):</span>
+                                  <div className="fk-inline-row">
+                                    <span className="fk-inline-hint">Columna Filtro:</span>
                                     <select
                                       className="fk-select"
                                       value={selectedFilterColumn}
                                       onChange={(e) => setSelectedFilterColumn(e.target.value)}
-                                      style={{ maxWidth: '140px' }}
                                       title="Columna usada como filtro (ej: la columna que indica si el registro es Cargo, Departamento, etc.)"
                                     >
                                       <option value="">-- Sin Filtro --</option>
@@ -665,11 +677,10 @@ export default function Spreadsheet({
                                       ))}
                                     </select>
                                     
-                                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Valor Filtro:</span>
+                                    <span className="fk-inline-hint">Valor Filtro:</span>
                                     <input
                                       type="text"
-                                      className="excel-input"
-                                      style={{ width: '180px', height: '26px', padding: '2px 8px', fontSize: '11px', cursor: 'text' }}
+                                      className="excel-input fk-filter-input"
                                       placeholder="Ej: CARGOS (3)"
                                       value={filterValueText}
                                       onChange={(e) => setFilterValueText(e.target.value)}
@@ -684,11 +695,11 @@ export default function Spreadsheet({
                             <div className="fk-relation-cell">
                               {fk ? (
                                 <>
-                                  <span className="fk-info-text" style={{ opacity: fk.enabled ? 1 : 0.5 }} title="Detalles completos de la relación guardada">
+                                  <span className={`fk-info-text ${fk.enabled ? '' : 'is-disabled'}`} title="Detalles completos de la relación guardada">
                                     <Link2 size={12} className="text-green" /> 
-                                    <span style={{ fontSize: '12px', fontWeight: 500 }}>{formatFkName(fk)}</span>
+                                    <span>{formatFkName(fk)}</span>
                                   </span>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <div className="fk-relation-actions">
                                     {/* Switch Toggle con Etiqueta Descriptiva */}
                                     <div className="fk-toggle-container" title="Activar/desactivar la traducción en la grilla y reportes. Si se desactiva, volverás a ver el ID original.">
                                       <span className={`fk-toggle-label ${fk.enabled ? 'active' : 'inactive'}`}>
@@ -697,6 +708,7 @@ export default function Spreadsheet({
                                       <label className="excel-switch">
                                         <input 
                                           type="checkbox" 
+                                          aria-label={`Traducir relación de ${col.name}`}
                                           checked={fk.enabled} 
                                           onChange={(e) => onToggleFk(col.name, fk, e.target.checked)} 
                                         />
@@ -706,6 +718,7 @@ export default function Spreadsheet({
                                     {/* Editar */}
                                     <button 
                                       className="fk-action-btn"
+                                      aria-label="Editar relación"
                                       title="Editar la configuración de la relación (cambiar tabla, columnas de visualización o filtros)"
                                       onClick={() => {
                                         setEditingColName(col.name);
@@ -727,6 +740,7 @@ export default function Spreadsheet({
                                     {/* Eliminar (Quitar override) */}
                                     <button 
                                       className="fk-action-btn"
+                                      aria-label="Eliminar relación"
                                       title="Eliminar permanentemente esta relación y volver a mostrar el ID crudo original"
                                       onClick={() => onDeleteCustomFk(col.name, fk)}
                                     >
@@ -736,8 +750,7 @@ export default function Spreadsheet({
                                 </>
                               ) : (
                                 <button 
-                                  className="excel-btn" 
-                                  style={{ padding: '4px 10px', fontSize: '11px', height: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  className="excel-btn excel-btn--compact"
                                   onClick={() => {
                                     setEditingColName(col.name);
                                     setSelectedTargetTableKey("");

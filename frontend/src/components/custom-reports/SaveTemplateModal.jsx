@@ -21,27 +21,26 @@ function SaveTemplateModal({
         ref={modalRef}
         className="modal-card"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '460px' }}
+        style={{ '--modal-max-w': '460px' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="save-template-modal-title"
         tabIndex={-1}
       >
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Save size={18} style={{ color: 'var(--excel-green-light)' }} />
+          <div className="modal-title-group">
+            <Save size={18} className="excel-icon" />
             <h3 id="save-template-modal-title">Guardar Plantilla de Reporte</h3>
           </div>
           <button className="modal-close-btn" onClick={onClose} aria-label="Cerrar"><X size={16} /></button>
         </div>
-        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div className="modal-body modal-body--stack">
           <div>
             <label className="cr-label" htmlFor="save-template-name"><strong>Nombre del Reporte:</strong></label>
             <input
               id="save-template-name"
               type="text"
-              className="excel-input"
-              style={{ width: '100%', marginTop: '4px' }}
+              className="excel-input form-control-block"
               value={tempReportName}
               onChange={(e) => setTempReportName(e.target.value)}
               placeholder="Ej. Ventas por Cliente y Ciudad"
@@ -51,8 +50,7 @@ function SaveTemplateModal({
             <label className="cr-label" htmlFor="save-template-desc"><strong>Descripción (Opcional):</strong></label>
             <textarea
               id="save-template-desc"
-              className="excel-input"
-              style={{ width: '100%', marginTop: '4px', minHeight: '70px', resize: 'vertical' }}
+              className="excel-input form-control-block form-textarea"
               value={tempReportDesc}
               onChange={(e) => setTempReportDesc(e.target.value)}
               placeholder="Descripción de qué tablas cruza y qué información entrega..."

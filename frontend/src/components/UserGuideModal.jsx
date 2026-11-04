@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useModalA11y } from '../hooks/useModalA11y';
 import { X, BookOpen, Layers, Link2, Download, Lightbulb, Sparkles } from 'lucide-react';
 
 const TABS = [
@@ -17,12 +18,21 @@ const TABS = [
 // `manual-*` en index.css; ver esa hoja de estilos para el detalle visual.
 export default function UserGuideModal({ onClose }) {
   const [manualTab, setManualTab] = useState('general');
+  const modalRef = useModalA11y(true, onClose);
 
   return (
     <div className="dba-modal-overlay" onClick={onClose}>
-      <div className="dba-modal dba-modal--wide" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={modalRef}
+        className="dba-modal dba-modal--wide manual-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="manual-modal-title"
+        tabIndex={-1}
+      >
         <div className="dba-modal-header dba-modal-header--accent">
-          <h3 className="dba-modal-title">
+          <h3 className="dba-modal-title" id="manual-modal-title">
             <BookOpen size={18} />
             Guía de Uso Interactivo <span>Manual</span>
           </h3>
@@ -30,6 +40,7 @@ export default function UserGuideModal({ onClose }) {
             className="dba-close-btn"
             onClick={onClose}
             title="Cerrar guía"
+            aria-label="Cerrar guía"
           >
             <X size={18} />
           </button>
@@ -37,10 +48,12 @@ export default function UserGuideModal({ onClose }) {
 
         <div className="dba-modal-body dba-modal-body--split">
           {/* Sidebar del manual */}
-          <div className="manual-tab-sidebar">
+          <div className="manual-tab-sidebar" role="tablist" aria-label="Secciones de la guía">
             {TABS.map(({ id, label, Icon }) => (
               <button
                 key={id}
+                role="tab"
+                aria-selected={manualTab === id}
                 className={`manual-tab-btn ${manualTab === id ? 'active' : ''}`}
                 onClick={() => setManualTab(id)}
               >
@@ -228,7 +241,7 @@ export default function UserGuideModal({ onClose }) {
 
                 <div className="manual-warn-banner">
                   <span className="manual-tip-emoji">⚡</span>
-                  <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                  <span className="manual-tip-text">
                     <strong>Nota de Rendimiento:</strong> Si notas que los datos tardan unos milisegundos en cargar al cambiar de tabla por primera vez, es normal. La aplicación realiza consultas dinámicas optimizadas sobre el catálogo de SQL Server y luego las almacena en la caché de Caffeine para entregas instantáneas.
                   </span>
                 </div>

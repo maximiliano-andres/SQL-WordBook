@@ -68,7 +68,7 @@ export default function DbaConsoleModal({ dbInfo, onClose }) {
               <h4 className="dba-card-title">Rendimiento e Instancia</h4>
               <div className="dba-metric-row">
                 <span className="dba-metric-label">Estado de la BD:</span>
-                <span className="dba-metric-value" style={{ color: dbInfo.dbState === 'ONLINE' ? 'var(--excel-green-light)' : 'var(--excel-amber)' }}>
+                <span className={`dba-metric-value ${(dbInfo.dbState || 'ONLINE') === 'ONLINE' ? 'text-accent' : 'text-warn'}`}>
                   ● {dbInfo.dbState || 'ONLINE'}
                 </span>
               </div>
@@ -149,7 +149,7 @@ export default function DbaConsoleModal({ dbInfo, onClose }) {
                   </tbody>
                 </table>
               ) : (
-                <span className="dba-metric-value--small" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                <span className="dba-metric-value--small dba-metric-empty">
                   Sin acceso al tamaño de archivos individuales
                 </span>
               )}

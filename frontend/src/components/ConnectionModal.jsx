@@ -230,14 +230,14 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
             onClick={() => setActiveTab('new')}
           >
             <Server size={14} />
-            <span>Configurar Conexión</span>
+            <span className="text-ellipsis">Configurar Conexión</span>
           </button>
           <button
             className={`conn-tab ${activeTab === 'saved' ? 'active' : ''}`}
             onClick={() => setActiveTab('saved')}
           >
             <HardDrive size={14} />
-            <span>Conexiones Guardadas ({savedConnections.length})</span>
+            <span className="text-ellipsis">Guardadas ({savedConnections.length})</span>
           </button>
         </div>
 
@@ -289,8 +289,9 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
               <div className="conn-form-grid">
                 {engineType === 'CUSTOM' ? (
                   <div className="conn-form-col full">
-                    <label className="conn-label">Cadena JDBC Completa</label>
+                    <label className="conn-label" htmlFor="conn-jdbc">Cadena JDBC Completa</label>
                     <input
+                      id="conn-jdbc"
                       type="text"
                       className="conn-input font-mono"
                       placeholder="jdbc:postgresql://servidor:5432/mibasedatos"
@@ -300,11 +301,12 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
                   </div>
                 ) : engineType === 'SQLITE' ? (
                   <div className="conn-form-col full">
-                    <label className="conn-label">
-                      <FolderOpen size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                    <label className="conn-label" htmlFor="conn-sqlite">
+                      <FolderOpen size={14} className="inline-icon" />
                       Ruta del Archivo SQLite (.db / .sqlite)
                     </label>
                     <input
+                      id="conn-sqlite"
                       type="text"
                       className="conn-input font-mono"
                       placeholder="./mi_base_de_datos.sqlite o /ruta/absoluta/datos.db"
@@ -315,8 +317,9 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
                 ) : (
                   <>
                     <div className="conn-form-col span-2">
-                      <label className="conn-label">Servidor / Host</label>
+                      <label className="conn-label" htmlFor="conn-host">Servidor / Host</label>
                       <input
+                        id="conn-host"
                         type="text"
                         className="conn-input"
                         placeholder={ENGINES.find(e => e.id === engineType)?.placeholder || 'localhost'}
@@ -326,8 +329,9 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
                     </div>
 
                     <div className="conn-form-col">
-                      <label className="conn-label">Puerto</label>
+                      <label className="conn-label" htmlFor="conn-port">Puerto</label>
                       <input
+                        id="conn-port"
                         type="number"
                         className="conn-input font-mono"
                         placeholder="1433"
@@ -337,8 +341,9 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
                     </div>
 
                     <div className="conn-form-col span-2">
-                      <label className="conn-label">Base de Datos / Catálogo / SID</label>
+                      <label className="conn-label" htmlFor="conn-db">Base de Datos / Catálogo / SID</label>
                       <input
+                        id="conn-db"
                         type="text"
                         className="conn-input"
                         placeholder="Ej. ventas_db o CL3530BD01MAP"
@@ -348,8 +353,9 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
                     </div>
 
                     <div className="conn-form-col">
-                      <label className="conn-label">Esquema (Opcional)</label>
+                      <label className="conn-label" htmlFor="conn-schema">Esquema (Opcional)</label>
                       <input
+                        id="conn-schema"
                         type="text"
                         className="conn-input"
                         placeholder="dbo / public / HR"
@@ -363,8 +369,9 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
                 {engineType !== 'SQLITE' && (
                   <>
                     <div className="conn-form-col">
-                      <label className="conn-label">Usuario</label>
+                      <label className="conn-label" htmlFor="conn-user">Usuario</label>
                       <input
+                        id="conn-user"
                         type="text"
                         className="conn-input"
                         placeholder="Usuario de la base de datos"
@@ -374,8 +381,9 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
                     </div>
 
                     <div className="conn-form-col">
-                      <label className="conn-label">Contraseña</label>
+                      <label className="conn-label" htmlFor="conn-pass">Contraseña</label>
                       <input
+                        id="conn-pass"
                         type="password"
                         className="conn-input"
                         placeholder="••••••••••••"
@@ -385,8 +393,9 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
                     </div>
 
                     <div className="conn-form-col">
-                      <label className="conn-label">Nombre del Perfil (Favorito)</label>
+                      <label className="conn-label" htmlFor="conn-profile">Nombre del Perfil (Favorito)</label>
                       <input
+                        id="conn-profile"
                         type="text"
                         className="conn-input"
                         placeholder="Ej. BD Producción"
@@ -434,6 +443,7 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
                         className="conn-saved-delete-btn"
                         onClick={(e) => handleDeleteSaved(conn.id, e)}
                         title="Eliminar de favoritos"
+                        aria-label="Eliminar conexión guardada"
                       >
                         <Trash2 size={15} />
                       </button>
@@ -459,7 +469,7 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
             </button>
           )}
 
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+          <div className="conn-footer-actions">
             <button
               type="button"
               className="excel-btn"

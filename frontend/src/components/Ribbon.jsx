@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Database, RefreshCw, Download, Info, Settings,
   ChevronLeft, ChevronRight, Table, Cpu, ShieldAlert, Link2,
@@ -37,6 +37,25 @@ export default function Ribbon({
   const { user, logout, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('home'); // 'home', 'data', 'about'
   const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
+  const columnsDropdownRef = useRef(null);
+
+  // Cierra el desplegable de columnas al tocar/clicar fuera o con Escape
+  // (en pantallas táctiles no existía otra forma de cerrarlo que volver al botón).
+  useEffect(() => {
+    if (!showColumnsDropdown) return undefined;
+    const handlePointer = (e) => {
+      if (columnsDropdownRef.current && !columnsDropdownRef.current.contains(e.target)) {
+        setShowColumnsDropdown(false);
+      }
+    };
+    const handleKey = (e) => { if (e.key === 'Escape') setShowColumnsDropdown(false); };
+    document.addEventListener('pointerdown', handlePointer);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointer);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [showColumnsDropdown]);
 
   const handleToggleTab = (tab) => {
     setActiveTab(tab);
@@ -49,26 +68,32 @@ export default function Ribbon({
       <div className="ribbon-top-bar">
         <div className="excel-logo-area">
           <img src="/logo.png" alt="Logo" className="excel-logo" />
-          <h1 className="app-title">Multi-DB <span>Workbook</span></h1>
+          <h1 className="app-title">Multi-DB <span className="app-title-suffix">Workbook</span></h1>
         </div>
 
         {/* Selector de Modo de Trabajo Principal */}
-        <div className="view-mode-switcher">
+        <div className="view-mode-switcher" role="tablist" aria-label="Vista principal">
           <button
+            role="tab"
+            aria-selected={currentView === 'explorer'}
             className={`view-mode-btn ${currentView === 'explorer' ? 'active' : ''}`}
             onClick={() => setCurrentView('explorer')}
             title="Explorador de tablas individuales estilo Excel"
           >
             <Table size={13} />
-            <span>{uxMode === 'simple' ? 'Hojas de Datos' : 'Explorador de Tablas'}</span>
+            <span className="label-long">{uxMode === 'simple' ? 'Hojas de Datos' : 'Explorador de Tablas'}</span>
+            <span className="label-short">{uxMode === 'simple' ? 'Datos' : 'Tablas'}</span>
           </button>
           <button
+            role="tab"
+            aria-selected={currentView === 'custom-reports'}
             className={`view-mode-btn ${currentView === 'custom-reports' ? 'active' : ''}`}
             onClick={() => setCurrentView('custom-reports')}
             title="Constructor y visor de reportes personalizados con cruces multi-tabla"
           >
-            <Layers size={13} style={{ color: currentView === 'custom-reports' ? '#fff' : 'var(--excel-green-light)' }} />
-            <span>{uxMode === 'simple' ? 'Cruzar y Armar Reportes' : 'Reportes Personalizados (Joins)'}</span>
+            <Layers size={13} />
+            <span className="label-long">{uxMode === 'simple' ? 'Cruzar y Armar Reportes' : 'Reportes Personalizados (Joins)'}</span>
+            <span className="label-short">Reportes</span>
           </button>
         </div>
 
@@ -77,49 +102,54 @@ export default function Ribbon({
           <button
             className={`ux-mode-btn ${uxMode === 'simple' ? 'active simple' : ''}`}
             onClick={() => onSetUxMode('simple')}
+            aria-pressed={uxMode === 'simple'}
           >
-            <span>🟢 Modo Fácil (Excel)</span>
+            <span className="ux-label-long">🟢 Modo Fácil (Excel)</span>
+            <span className="ux-label-short">Fácil</span>
           </button>
           <button
             className={`ux-mode-btn ${uxMode === 'advanced' ? 'active advanced' : ''}`}
             onClick={() => onSetUxMode('advanced')}
+            aria-pressed={uxMode === 'advanced'}
           >
-            <span>🛠️ Modo DBA</span>
+            <span className="ux-label-long">🛠️ Modo DBA</span>
+            <span className="ux-label-short">DBA</span>
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="ribbon-actions">
           {/* Botón de Gestión de Conexión de Base de Datos */}
           <button
             className="excel-btn conn-trigger-btn"
             onClick={onOpenConnectionModal}
             title={dbInfo ? `Conexión activa: ${dbInfo.databaseProduct || 'BD'} (${dbInfo.currentDatabase || 'Principal'}). Clic para administrar o alternar motor.` : 'Configurar conexión de base de datos'}
           >
-            <Plug size={13} className="excel-icon" style={{ color: 'var(--excel-green-light)' }} />
-            <span>{dbInfo ? `${dbInfo.databaseProduct || 'BD'}${dbInfo.currentDatabase ? ` · ${dbInfo.currentDatabase}` : ''}` : 'Conexión BD'}</span>
+            <Plug size={13} className="excel-icon" />
+            <span className="conn-trigger-label">{dbInfo ? `${dbInfo.databaseProduct || 'BD'}${dbInfo.currentDatabase ? ` · ${dbInfo.currentDatabase}` : ''}` : 'Conexión BD'}</span>
             <span className={`status-dot ${dbInfo?.databaseProduct ? 'online' : ''}`}></span>
           </button>
 
           <button
-            className="excel-btn"
+            className="excel-btn ribbon-guide-btn"
             onClick={onOpenManual}
-            style={{ padding: '4px 10px', fontSize: '11px', gap: '4px', height: '26px' }}
             title="Abrir Manual de Uso Interactivo y atajos de teclado"
+            aria-label="Abrir guía de uso"
           >
-            <HelpCircle size={13} className="excel-icon" style={{ color: 'var(--excel-green-light)' }} />
-            <span>Guía</span>
+            <HelpCircle size={13} className="excel-icon" />
+            <span className="btn-label">Guía</span>
           </button>
 
           {/* Perfil de Usuario y Logout */}
           {isAuthenticated && user && (
             <div className="user-profile-pill" title={`Usuario autenticado: ${user.username}. Clic en el icono de salir para cerrar sesión.`}>
-              <User size={13} style={{ color: 'var(--excel-green-light)' }} />
+              <User size={13} className="excel-icon" />
               <span className="user-profile-name">{user.username}</span>
               <button
                 type="button"
                 className="user-logout-btn"
                 onClick={logout}
                 title="Cerrar sesión de usuario"
+                aria-label="Cerrar sesión"
               >
                 <LogOut size={12} />
               </button>
@@ -153,12 +183,11 @@ export default function Ribbon({
             Rendimiento y Seguridad
           </button>
           <button
-            className="ribbon-tab"
-            style={{ marginLeft: 'auto', color: 'var(--excel-green-light)', fontWeight: 600 }}
+            className="ribbon-tab ribbon-tab--cta"
             onClick={() => setCurrentView('custom-reports')}
             title="Abrir el generador de reportes personalizados y cruces multi-tabla"
           >
-            <Layers size={13} style={{ marginRight: '4px', verticalAlign: '-2px' }} />
+            <Layers size={13} className="inline-icon" />
             Ir a Reportes Personalizados →
           </button>
         </div>
@@ -191,13 +220,14 @@ export default function Ribbon({
                 onClick={onPrevPage}
                 disabled={page <= 1 || isDataLoading}
                 title="Cargar la página anterior de registros en la grilla"
+                aria-label="Página anterior"
               >
                 <ChevronLeft size={16} />
-                Anterior
+                <span className="btn-label">Anterior</span>
               </button>
 
               <span
-                style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
+                className="ribbon-page-indicator"
                 title={`Visualizando página ${page} de un total de ${totalPages || 1}`}
               >
                 Pág. <strong>{page}</strong> de <strong>{totalPages || 1}</strong>
@@ -208,8 +238,9 @@ export default function Ribbon({
                 onClick={onNextPage}
                 disabled={page >= totalPages || isDataLoading}
                 title="Cargar la página siguiente de registros en la grilla"
+                aria-label="Página siguiente"
               >
-                Siguiente
+                <span className="btn-label">Siguiente</span>
                 <ChevronRight size={16} />
               </button>
             </div>
@@ -232,7 +263,7 @@ export default function Ribbon({
             {fkColumns.length > 0 && (
               <div className="control-group" title="Modos de traducción para las Claves Foráneas (FK) detectadas">
                 <span className="control-label">
-                  <Link2 size={12} style={{ marginRight: '4px', verticalAlign: '-2px' }} />
+                  <Link2 size={12} className="inline-icon" />
                   Foreign Keys ({fkColumns.length})
                 </span>
                 <div className="fk-mode-toggle">
@@ -288,12 +319,13 @@ export default function Ribbon({
 
             {/* Grupo: Selección de Columnas */}
             {activeTable && (
-              <div className="control-group" style={{ position: 'relative' }} title="Configuración de la estructura de campos del reporte final de Excel">
+              <div className="control-group control-group--dropdown" ref={columnsDropdownRef} title="Configuración de la estructura de campos del reporte final de Excel">
                 <span className="control-label">Columnas para el Reporte</span>
                 <button
                   className="excel-btn"
                   onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
                   disabled={isDataLoading}
+                  aria-expanded={showColumnsDropdown}
                   title="Haz clic para desplegar la lista de columnas y marcar cuáles deseas incluir en el reporte de Excel (.xlsx)"
                 >
                   <Table size={14} />
@@ -301,35 +333,18 @@ export default function Ribbon({
                 </button>
 
                 {showColumnsDropdown && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: '0',
-                    marginTop: '4px',
-                    width: '260px',
-                    maxHeight: '260px',
-                    backgroundColor: 'var(--excel-bg-header)',
-                    border: '1px solid var(--excel-border)',
-                    borderRadius: '6px',
-                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-                    zIndex: 500,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    padding: '12px'
-                  }}>
+                  <div className="ribbon-dropdown">
                     {/* Botones de acción rápida */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--excel-border)', paddingBottom: '8px', marginBottom: '8px' }}>
+                    <div className="ribbon-dropdown-actions">
                       <button
-                        className="excel-btn"
-                        style={{ padding: '2px 6px', fontSize: '10px' }}
+                        className="excel-btn excel-btn--xs"
                         onClick={() => setSelectedColumns(columns.map(c => c.name))}
                         title="Marcar todas las columnas de la lista para incluirlas en la exportación"
                       >
                         Marcar todas
                       </button>
                       <button
-                        className="excel-btn"
-                        style={{ padding: '2px 6px', fontSize: '10px' }}
+                        className="excel-btn excel-btn--xs"
                         onClick={() => setSelectedColumns([])}
                         title="Desmarcar todas las columnas de la lista para realizar una selección limpia"
                       >
@@ -338,26 +353,18 @@ export default function Ribbon({
                     </div>
 
                     {/* Lista con scroll de checkboxes */}
-                    <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', flexGrow: 1, paddingRight: '4px' }}>
+                    <div className="ribbon-dropdown-list">
                       {columns.map(col => {
                         const isChecked = selectedColumns.includes(col.name);
                         return (
                           <label
                             key={col.name}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              fontSize: '12px',
-                              cursor: 'pointer',
-                              color: isChecked ? 'var(--text-primary)' : 'var(--text-muted)'
-                            }}
+                            className={`ribbon-dropdown-item ${isChecked ? 'checked' : ''}`}
                             title={`Incluir columna '${col.name}' en la descarga del archivo de Excel`}
                           >
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              style={{ accentColor: 'var(--excel-green-light)', cursor: 'pointer' }}
                               onChange={(e) => {
                                 if (e.target.checked) {
                                   setSelectedColumns([...selectedColumns, col.name]);
@@ -366,7 +373,7 @@ export default function Ribbon({
                                 }
                               }}
                             />
-                            <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={col.name}>
+                            <span className="text-ellipsis" title={col.name}>
                               {col.name}
                             </span>
                           </label>
@@ -381,31 +388,30 @@ export default function Ribbon({
         )}
 
         {activeTab === 'about' && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: '24px', fontSize: '11.5px', color: 'var(--text-secondary)', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="El frontend de la aplicación web fue desarrollado con React y empaquetado ultra rápido con compiladores en Rust">
+          <div className="ribbon-about">
+            <div className="ribbon-about-stats">
+              <div className="ribbon-stat" title="El frontend de la aplicación web fue desarrollado con React y empaquetado ultra rápido con compiladores en Rust">
                 <Cpu size={14} className="excel-icon" />
                 <span><strong>Frontend:</strong> React + Vite</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Conexiones/procesos actualmente abiertos en la base de datos">
+              <div className="ribbon-stat" title="Conexiones/procesos actualmente abiertos en la base de datos">
                 <RefreshCw size={14} className="excel-icon" />
-                <span><strong>Conexiones BD:</strong> <strong style={{ color: 'var(--excel-green-light)' }}>{dbInfo?.activeConnections !== null ? dbInfo.activeConnections : '1'}</strong> activas</span>
+                <span><strong>Conexiones BD:</strong> <strong className="text-accent">{dbInfo?.activeConnections ?? '1'}</strong> activas</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Cantidad total de tablas físicas detectadas en la base de datos">
+              <div className="ribbon-stat" title="Cantidad total de tablas físicas detectadas en la base de datos">
                 <Table size={14} className="excel-icon" />
-                <span><strong>Tablas Detectadas:</strong> <strong style={{ color: 'var(--excel-green-light)' }}>{dbInfo?.totalTables !== null ? dbInfo.totalTables : tablesCount}</strong></span>
+                <span><strong>Tablas Detectadas:</strong> <strong className="text-accent">{dbInfo?.totalTables ?? tablesCount}</strong></span>
               </div>
-              {dbInfo?.totalSizeMb !== null && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Tamaño total en disco consumido por los archivos de la base de datos">
+              {dbInfo?.totalSizeMb != null && (
+                <div className="ribbon-stat" title="Tamaño total en disco consumido por los archivos de la base de datos">
                   <Database size={14} className="excel-icon" />
-                  <span><strong>Tamaño Total:</strong> <strong style={{ color: 'var(--excel-amber)' }}>{dbInfo.totalSizeMb} MB</strong></span>
+                  <span><strong>Tamaño Total:</strong> <strong className="text-warn">{dbInfo.totalSizeMb} MB</strong></span>
                 </div>
               )}
             </div>
 
             <button
               className="excel-btn primary"
-              style={{ padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', height: '30px' }}
               onClick={onOpenDbaConsole}
               title="Abrir el panel de diagnóstico detallado para desarrolladores, consultores y administradores de bases de datos"
             >

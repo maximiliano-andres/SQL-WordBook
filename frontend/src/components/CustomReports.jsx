@@ -783,7 +783,7 @@ export default function CustomReports({
             <div className="cr-header-rows-badge" title="Total de registros coincidentes en la base de datos">
               <span className="cr-header-rows-dot">●</span>
               <span>Total: <strong>{totalRows.toLocaleString()}</strong> filas</span>
-              {isDistinct && <small style={{ color: 'var(--excel-green-light)', fontWeight: 'bold' }}>(Sin Duplicados)</small>}
+              {isDistinct && <small className="text-accent text-bold">(Sin Duplicados)</small>}
             </div>
           )}
         </div>
@@ -794,7 +794,7 @@ export default function CustomReports({
             onClick={handleOpenSaveModal}
             title="Guardar esta consulta como plantilla reutilizable"
           >
-            <Save size={14} style={{ color: 'var(--excel-green-light)' }} />
+            <Save size={14} className="excel-icon" />
             <span>Guardar Plantilla</span>
           </button>
 
@@ -816,7 +816,7 @@ export default function CustomReports({
             <span>Nuevo</span>
           </button>
 
-          <div style={{ height: '20px', width: '1px', backgroundColor: 'var(--excel-border)', margin: '0 4px' }}></div>
+          <div className="cr-header-divider" aria-hidden="true"></div>
 
           <div className="cr-view-pills">
             <button
@@ -848,17 +848,17 @@ export default function CustomReports({
       </div>
 
       {queryError && (
-        <div className="cr-error-banner">
+        <div className="cr-error-banner" role="alert">
           <AlertCircle size={16} />
           <span>{queryError}</span>
-          <button className="cr-icon-btn" onClick={() => setQueryError(null)}><X size={14} /></button>
+          <button className="cr-icon-btn" onClick={() => setQueryError(null)} aria-label="Cerrar mensaje de error"><X size={14} /></button>
         </div>
       )}
 
       {/* Contenido Principal */}
       <div className="cr-body-content">
         {uxMode === 'simple' && activeStep === 'builder' && (
-          <div className="ux-friendly-banner" style={{ margin: '8px 14px 0 14px' }}>
+          <div className="ux-friendly-banner cr-assistant-banner">
             <div className="ux-friendly-banner-text">
               <Sparkles size={16} className="ux-friendly-banner-icon" />
               <span>

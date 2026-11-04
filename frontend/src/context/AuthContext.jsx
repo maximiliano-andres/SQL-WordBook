@@ -50,7 +50,11 @@ export function AuthProvider({ children }) {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || 'Usuario o contraseña incorrectos.');
+      const err = new Error(errData.error || 'Usuario o contraseña incorrectos.');
+      // Solo metadato para que la vista de login muestre un mensaje adecuado a cada caso
+      // (401 credenciales, 429 bloqueo temporal, 5xx servidor); el flujo no cambia.
+      err.status = res.status;
+      throw err;
     }
 
     const data = await res.json();
