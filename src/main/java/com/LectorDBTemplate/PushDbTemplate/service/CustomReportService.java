@@ -113,12 +113,27 @@ public class CustomReportService {
     }
 
     public ReportTemplate saveReportTemplate(ReportTemplate template) {
-        if (template.name() == null || template.name().trim().isEmpty()) {
+        if (template == null || template.name() == null || template.name().trim().isEmpty()) {
             throw new IllegalArgumentException("El nombre del reporte es obligatorio.");
+        }
+        // Validación explícita contra los límites de dbo.push_custom_reports (V1): antes estos
+        // casos llegaban a SQL Server y volvían como un 400 genérico "No se pudo ejecutar la
+        // consulta" (truncamiento / NOT NULL), sin decirle al usuario qué corregir.
+        if (template.name().trim().length() > 255) {
+            throw new IllegalArgumentException("El nombre del reporte no puede superar 255 caracteres.");
+        }
+        if (template.description() != null && template.description().length() > 1000) {
+            throw new IllegalArgumentException("La descripción del reporte no puede superar 1000 caracteres.");
+        }
+        if (template.configJson() == null || template.configJson().isBlank()) {
+            throw new IllegalArgumentException("La configuración del reporte (configJson) es obligatoria.");
         }
         String id = (template.id() != null && !template.id().trim().isEmpty())
                 ? template.id().trim()
                 : UUID.randomUUID().toString();
+        if (id.length() > 64) {
+            throw new IllegalArgumentException("El id del reporte no puede superar 64 caracteres.");
+        }
 
         String now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         ReportTemplate saved = new ReportTemplate(id, template.name().trim(), template.description(), template.configJson(), now, now);
@@ -422,7 +437,7 @@ public class CustomReportService {
         if (column == null || column.trim().isEmpty()) {
             throw new SecurityException("Nombre de columna no puede ser vacío");
         }
-        String cleanCol = column.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim();
+        String cleanCol = SchemaMetadataService.stripQuotes(column);
         List<ColumnInfo> cols = schemaMetadataService.getColumns(schema, tableName);
         boolean exists = cols.stream().anyMatch(c -> c.name().trim().equalsIgnoreCase(cleanCol));
         if (!exists) {

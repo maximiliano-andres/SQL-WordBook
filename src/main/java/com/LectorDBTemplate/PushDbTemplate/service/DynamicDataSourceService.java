@@ -47,6 +47,12 @@ public class DynamicDataSourceService {
     private final Set<HikariDataSource> pendingPoolCloses = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private final CacheManager cacheManager;
+    // DataSource gestionado por Spring (spring.datasource.*). Es el MISMO que usan Flyway y
+    // appJdbcTemplate (FKs personalizadas / plantillas de reportes), así que este servicio
+    // nunca debe cerrarlo: antes, al cambiar de conexión desde el frontend, se programaba su
+    // cierre igual que el de cualquier pool dinámico y, 30 s después, la persistencia propia
+    // de la app quedaba inutilizable hasta reiniciar ("HikariDataSource has been closed").
+    private final DataSource initialDataSource;
     private DataSource currentDataSource;
     private JdbcTemplate currentJdbcTemplate;
     private DbDialect currentDialect;
@@ -82,6 +88,7 @@ public class DynamicDataSourceService {
 
     public DynamicDataSourceService(DataSource initialDataSource, CacheManager cacheManager) {
         this.cacheManager = cacheManager;
+        this.initialDataSource = initialDataSource;
         this.currentDataSource = initialDataSource;
         this.currentJdbcTemplate = new JdbcTemplate(initialDataSource);
 
@@ -132,6 +139,10 @@ public class DynamicDataSourceService {
     public TestResult testConnection(ConnectionConfig config) {
         long start = System.currentTimeMillis();
         String jdbcUrl = resolveJdbcUrl(config);
+        String urlError = validateJdbcUrl(jdbcUrl);
+        if (urlError != null) {
+            return new TestResult(false, urlError, 0, null, null, null);
+        }
         String driverClass = resolveDriverClass(config);
 
         try {
@@ -166,6 +177,10 @@ public class DynamicDataSourceService {
      */
     public synchronized ConnectResult connectTo(ConnectionConfig config) {
         String jdbcUrl = resolveJdbcUrl(config);
+        String urlError = validateJdbcUrl(jdbcUrl);
+        if (urlError != null) {
+            return new ConnectResult(false, urlError, null);
+        }
         String driverClass = resolveDriverClass(config);
 
         log.info("Iniciando cambio dinámico de conexión hacia {}...", sanitizeJdbcUrl(jdbcUrl));
@@ -187,23 +202,32 @@ public class DynamicDataSourceService {
         hikariConfig.setMaxLifetime(1800000);
         hikariConfig.setPoolName("DynamicHikariPool-" + System.currentTimeMillis());
 
-        HikariDataSource newDataSource;
+        HikariDataSource newDataSource = null;
+        DbDialect detectedDialect;
         try {
             newDataSource = new HikariDataSource(hikariConfig);
             // Validamos conexión obteniendo metadata
             try (Connection conn = newDataSource.getConnection()) {
                 DatabaseMetaData meta = conn.getMetaData();
                 String product = meta.getDatabaseProductName();
-                this.currentDialect = DbDialectFactory.detectFromProductNameOrUrl(product, jdbcUrl);
-                log.info("Conexión verificada exitosamente: {} ({})", currentDialect.getDisplayName(), product);
+                detectedDialect = DbDialectFactory.detectFromProductNameOrUrl(product, jdbcUrl);
+                log.info("Conexión verificada exitosamente: {} ({})", detectedDialect.getDisplayName(), product);
             }
         } catch (Exception e) {
+            // Si el pool llegó a crearse pero la validación falló, se cierra: antes quedaba
+            // abierto (con su hilo de housekeeping) sin ninguna referencia que lo cerrara.
+            if (newDataSource != null) {
+                try {
+                    newDataSource.close();
+                } catch (Exception ignored) {}
+            }
             log.error("Error al inicializar nuevo pool de conexiones hacia {}: {}", sanitizeJdbcUrl(jdbcUrl), e.getMessage());
             return new ConnectResult(false, "No se pudo conectar: " + e.getMessage(), null);
         }
 
         // Reemplazo atómico del DataSource
         DataSource oldDataSource = this.currentDataSource;
+        this.currentDialect = detectedDialect;
         this.currentDataSource = newDataSource;
         this.currentJdbcTemplate = new JdbcTemplate(newDataSource);
         this.currentConfig = config;
@@ -215,7 +239,8 @@ public class DynamicDataSourceService {
         // Cerrar el DataSource antiguo si era un pool Hikari dinámico, con demora:
         // cerrarlo de inmediato abortaría conexiones que otros usuarios tengan
         // prestadas en ese momento (ver comentario en OLD_POOL_GRACE_PERIOD_SECONDS).
-        if (oldDataSource instanceof HikariDataSource oldHikari) {
+        // El DataSource inicial de Spring nunca se cierra aquí (ver initialDataSource).
+        if (oldDataSource != initialDataSource && oldDataSource instanceof HikariDataSource oldHikari) {
             pendingPoolCloses.add(oldHikari);
             poolCloseExecutor.schedule(() -> {
                 try {
@@ -281,11 +306,76 @@ public class DynamicDataSourceService {
     }
 
     private String resolveDriverClass(ConnectionConfig config) {
+        // Con URL JDBC personalizada (engineType CUSTOM en el frontend) el driver se elige por
+        // el prefijo de la URL. Antes se usaba siempre getByEngineType("CUSTOM"), que cae a
+        // SQL Server: "Probar conexión" funcionaba (DriverManager elige driver por URL) pero
+        // "Conectar" fallaba con cualquier motor distinto de SQL Server, porque Hikari exige
+        // que el driver configurado acepte la URL.
+        if (config.customJdbcUrl() != null && !config.customJdbcUrl().isBlank()) {
+            DbDialect byUrl = DbDialectFactory.detectFromUrlStrict(config.customJdbcUrl());
+            if (byUrl != null) {
+                return byUrl.getDriverClassName();
+            }
+        }
         DbDialect dialect = DbDialectFactory.getByEngineType(config.engineType());
         return dialect.getDriverClassName();
     }
 
+    // Propiedades de driver JDBC que instancian clases arbitrarias, escriben archivos locales,
+    // deserializan datos del servidor o leen archivos del cliente. Cualquier usuario autenticado
+    // puede enviar una URL JDBC libre (customJdbcUrl) o inyectar propiedades vía host/databaseName
+    // (p. ej. "db;trustManagerClass=..."), así que sin este filtro los endpoints de conexión
+    // permitían ejecución de código / escritura de archivos en el servidor (familia de
+    // CVE-2022-21724 / CVE-2022-26520 en pgjdbc, autoDeserialize/allowLoadLocalInfile en MySQL).
+    private static final java.util.regex.Pattern JDBC_PARAM_NAME =
+            java.util.regex.Pattern.compile("[;?&]\\s*([A-Za-z0-9_.\\-]+)\\s*=");
+    private static final Set<String> FORBIDDEN_JDBC_PARAMS = Set.of(
+            // PostgreSQL
+            "socketfactory", "socketfactoryarg", "sslfactory", "sslfactoryarg", "sslhostnameverifier",
+            "sslpasswordcallback", "authenticationpluginclassname", "loggerfile", "loggerlevel",
+            // MySQL / MariaDB
+            "autodeserialize", "allowloadlocalinfile", "allowloadlocalinfileinpath", "allowurlinlocalinfile",
+            "allowlocalinfile", "queryinterceptors", "statementinterceptors", "exceptioninterceptors",
+            "connectionlifecycleinterceptors", "propertiestransform", "authenticationplugins",
+            "defaultauthenticationplugin", "clientinfoprovider", "credentialtype",
+            // SQL Server
+            "socketfactoryclass", "socketfactoryconstructorarg", "trustmanagerclass",
+            "trustmanagerconstructorarg", "accesstokencallbackclass",
+            // SQLite
+            "enable_load_extension"
+    );
+
+    /**
+     * Valida una URL JDBC antes de abrir cualquier conexión. Devuelve el mensaje de error para el
+     * usuario, o null si es aceptable.
+     */
+    static String validateJdbcUrl(String jdbcUrl) {
+        if (jdbcUrl == null || jdbcUrl.isBlank()) {
+            return "La URL JDBC no puede estar vacía.";
+        }
+        if (DbDialectFactory.detectFromUrlStrict(jdbcUrl) == null) {
+            return "URL JDBC no soportada: debe comenzar con jdbc:sqlserver:, jdbc:postgresql:, jdbc:mysql:, "
+                    + "jdbc:mariadb:, jdbc:oracle: o jdbc:sqlite:.";
+        }
+        java.util.regex.Matcher m = JDBC_PARAM_NAME.matcher(jdbcUrl);
+        while (m.find()) {
+            String param = m.group(1).toLowerCase(Locale.ROOT);
+            if (FORBIDDEN_JDBC_PARAMS.contains(param)) {
+                return "Parámetro JDBC no permitido por seguridad: '" + m.group(1) + "'.";
+            }
+        }
+        return null;
+    }
+
     private String sanitizeJdbcUrl(String url) {
+        return maskJdbcUrl(url);
+    }
+
+    /**
+     * Enmascara credenciales en una URL JDBC (formato propiedades y formato userinfo) para
+     * logs y respuestas. Reutilizado por DatabaseDiagnosticsService.
+     */
+    public static String maskJdbcUrl(String url) {
         if (url == null) return "N/A";
         // Cubre tanto los parámetros de query/propiedades típicos (password=...;pwd=...) como
         // credenciales embebidas en la forma userinfo de la URL (jdbc:postgresql://user:pass@host/db),
@@ -322,7 +412,8 @@ public class DynamicDataSourceService {
                 pending.close();
             } catch (Exception ignored) {}
         }
-        if (currentDataSource instanceof HikariDataSource hikari) {
+        // El DataSource inicial lo cierra Spring al destruir su bean; aquí solo los dinámicos.
+        if (currentDataSource != initialDataSource && currentDataSource instanceof HikariDataSource hikari) {
             hikari.close();
         }
     }

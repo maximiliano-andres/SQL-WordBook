@@ -34,6 +34,23 @@ public final class DbDialectFactory {
         return dialect != null ? dialect : DIALECTS.get("SQLSERVER");
     }
 
+    /**
+     * Detecta el dialecto estrictamente por el prefijo de la URL JDBC, sin caer a SQL Server
+     * por defecto: devuelve null si la URL no pertenece a ninguno de los motores soportados.
+     * Se usa para validar URLs JDBC personalizadas (engineType CUSTOM) antes de abrir conexión.
+     */
+    public static DbDialect detectFromUrlStrict(String url) {
+        if (url == null) return null;
+        String u = url.trim().toLowerCase(Locale.ROOT);
+        if (u.startsWith("jdbc:sqlserver:")) return DIALECTS.get("SQLSERVER");
+        if (u.startsWith("jdbc:postgresql:")) return DIALECTS.get("POSTGRESQL");
+        if (u.startsWith("jdbc:mariadb:")) return DIALECTS.get("MARIADB");
+        if (u.startsWith("jdbc:mysql:")) return DIALECTS.get("MYSQL");
+        if (u.startsWith("jdbc:oracle:")) return DIALECTS.get("ORACLE");
+        if (u.startsWith("jdbc:sqlite:")) return DIALECTS.get("SQLITE");
+        return null;
+    }
+
     public static DbDialect detectFromProductNameOrUrl(String productName, String url) {
         if (productName != null) {
             String p = productName.toLowerCase(Locale.ROOT);

@@ -42,12 +42,11 @@ public class DatabaseDiagnosticsService {
             info.put("driverName", meta.getDriverName());
             info.put("driverVersion", meta.getDriverVersion());
 
+            // Mismo enmascarado que /connection/current: antes este endpoint usaba una versión
+            // más débil que no cubría "pwd=" ni credenciales en formato userinfo (user:pass@host),
+            // habituales en URLs JDBC personalizadas de PostgreSQL/MySQL.
             String url = meta.getURL();
-            if (url != null) {
-                url = url.replaceAll("(?i)password=[^;]*", "password=******")
-                         .replaceAll("(?i)user=[^;]*", "user=******");
-            }
-            info.put("jdbcUrl", url);
+            info.put("jdbcUrl", url != null ? DynamicDataSourceService.maskJdbcUrl(url) : null);
             String currentDb = conn.getCatalog() != null && !conn.getCatalog().isBlank() ? conn.getCatalog() : conn.getSchema();
             info.put("currentDatabase", currentDb != null ? currentDb : "Principal");
 
@@ -91,7 +90,9 @@ public class DatabaseDiagnosticsService {
 
         } catch (SQLException e) {
             log.error("Error al obtener información de la base de datos para {}", dialect.getDisplayName(), e);
-            info.put("error", "No se pudieron obtener los metadatos de conexión: " + e.getMessage());
+            // Sin e.getMessage(): el mensaje del driver puede incluir host, puerto, usuario o
+            // fragmentos de la URL JDBC. El detalle completo queda en el log del servidor.
+            info.put("error", "No se pudieron obtener los metadatos de conexión. Revise el log del servidor.");
             info.put("databaseProduct", dialect.getDisplayName());
             info.put("engineType", dialect.getEngineType());
         }
@@ -101,7 +102,10 @@ public class DatabaseDiagnosticsService {
     private void enrichSqlServerDiagnostics(Map<String, Object> info) {
         JdbcTemplate jdbc = getJdbcTemplate();
         try {
-            Integer activeConns = jdbc.queryForObject("SELECT COUNT(*) FROM sys.sysprocesses WHERE dbid = DB_ID()", Integer.class);
+            // sys.dm_exec_sessions en vez de sys.sysprocesses (vista de compatibilidad deprecada
+            // desde SQL Server 2005); is_user_process excluye las sesiones internas del motor.
+            Integer activeConns = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE database_id = DB_ID() AND is_user_process = 1", Integer.class);
             info.put("activeConnections", activeConns);
         } catch (Exception ignored) {}
 

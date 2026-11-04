@@ -49,7 +49,11 @@ public class SchemaMetadataService {
      * Obtiene la lista de tablas disponibles del esquema de manera segura usando DatabaseMetaData
      * y filtrando esquemas de sistema según el dialecto activo.
      */
-    @Cacheable("tables")
+    // unless: si la lectura de metadatos falla (SQLException capturada abajo) se devuelve una
+    // lista vacía. Antes esa lista vacía quedaba cacheada 10 minutos, y durante ese tiempo
+    // TODOS los endpoints respondían 403 "tabla no válida" aunque la BD ya se hubiera
+    // recuperado de una caída momentánea. Ahora un resultado vacío simplemente no se cachea.
+    @Cacheable(value = "tables", unless = "#result == null || #result.isEmpty()")
     public List<TableInfo> getTables() {
         List<TableInfo> tables = new ArrayList<>();
         DbDialect dialect = getDialect();
@@ -82,9 +86,15 @@ public class SchemaMetadataService {
         return tables;
     }
 
-    /**
-     * Valida si un esquema y tabla existen en la base de datos conectada (Whitelist Validation).
-     */
+    // Quita un nivel de delimitadores ([x], "x", 'x') que el cliente pueda enviar. Precompilado:
+    // String.replaceAll recompila la regex en cada llamada, y esto se ejecuta varias veces por
+    // request (whitelist de tabla, columnas, filtro, cada FK resuelta).
+    static final java.util.regex.Pattern IDENTIFIER_QUOTES = java.util.regex.Pattern.compile("^\\[|\\]$|^\"|\"$|^'|'$");
+
+    static String stripQuotes(String identifier) {
+        return IDENTIFIER_QUOTES.matcher(identifier.trim()).replaceAll("").trim();
+    }
+
     /**
      * Valida si un esquema y tabla existen en la base de datos conectada (Whitelist Validation).
      */
@@ -92,8 +102,17 @@ public class SchemaMetadataService {
         if (tableName == null || tableName.isBlank()) {
             return false;
         }
-        String cleanTable = tableName.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim();
-        String cleanSchema = (schema != null) ? schema.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim() : null;
+        String cleanTable = stripQuotes(tableName);
+        String cleanSchema = (schema != null) ? stripQuotes(schema) : null;
+
+        // El emparejamiento flexible de abajo acepta el esquema "dbo" como comodín (necesario
+        // para motores donde el frontend no conoce el esquema real). Sin esta guarda, ese
+        // comodín permitía consultar vistas de sistema que compartieran nombre con una tabla de
+        // dbo (p. ej. sys.<X> o INFORMATION_SCHEMA.<X> si existe dbo.<X>): el SQL final usa el
+        // esquema pedido por el cliente, no el de la tabla que pasó la whitelist.
+        if (cleanSchema != null && !cleanSchema.isBlank() && getDialect().isSystemTable(cleanSchema, cleanTable)) {
+            return false;
+        }
 
         return self.getTables().stream().anyMatch(t -> {
             boolean nameMatches = t.name().trim().equalsIgnoreCase(cleanTable);
@@ -109,7 +128,9 @@ public class SchemaMetadataService {
      * Obtiene la definición de columnas de una tabla seleccionada usando DatabaseMetaData
      * con fallback automático por ResultSetMetaData directo (SELECT * WHERE 1=0).
      */
-    @Cacheable(value = "columns", key = "#schema + '.' + #tableName")
+    // unless: igual que en getTables(), un fallo de metadatos devuelve lista vacía y no debe
+    // cachearse (con columnas vacías la validación cae al modo permisivo por regex).
+    @Cacheable(value = "columns", key = "#schema + '.' + #tableName", unless = "#result == null || #result.isEmpty()")
     public List<ColumnInfo> getColumns(String schema, String tableName) {
         if (!isTableValid(schema, tableName)) {
             throw new SecurityException("Acceso denegado: Esquema o tabla no válidos (" + schema + "." + tableName + ")");
@@ -225,7 +246,7 @@ public class SchemaMetadataService {
 
         List<String> resolved = new ArrayList<>();
         for (String rawCol : flattenedRequested) {
-            String col = rawCol.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim();
+            String col = stripQuotes(rawCol);
             Optional<String> match = validColNames.stream()
                     .filter(name -> name.trim().equalsIgnoreCase(col))
                     .findFirst();
@@ -257,7 +278,7 @@ public class SchemaMetadataService {
             return null;
         }
 
-        String cleanCol = filterColumn.trim().replaceAll("^\\[|\\]$|^\"|\"$|^'|'$", "").trim();
+        String cleanCol = stripQuotes(filterColumn);
         List<ColumnInfo> tableCols = self.getColumns(schema, tableName);
         Optional<String> match = tableCols.stream()
                 .map(ColumnInfo::name)
@@ -307,7 +328,10 @@ public class SchemaMetadataService {
         }
     }
 
-    @Cacheable(value = "tableCount", key = "#schema + '.' + #tableName + '.' + #filterColumn + '.' + #filterOperator + '.' + #filterValue + '.' + #filterValue2")
+    // Clave por defecto (SimpleKey de todos los argumentos) en vez de concatenar con '.': con la
+    // concatenación, filterValue=null y filterValue="null" generaban la misma clave, y el conteo
+    // sin filtro se servía para un filtro "= 'null'" (y viceversa) durante el TTL de la caché.
+    @Cacheable(value = "tableCount")
     public long getTableCount(String schema, String tableName, String filterColumn, String filterOperator, String filterValue, String filterValue2) {
         if (!isTableValid(schema, tableName)) {
             throw new SecurityException("Acceso denegado: Esquema o tabla no válidos (" + schema + "." + tableName + ")");

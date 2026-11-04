@@ -303,6 +303,25 @@ public class DatabaseController {
         return ResponseEntity.status(400).body(Map.of("error", ex.getMessage()));
     }
 
+    // Errores de forma de la petición (JSON mal formado, parámetro obligatorio ausente, tipo
+    // inválido como limit=abc). Antes los capturaba handleGeneralException y respondían 500
+    // "error interno", lo que ocultaba un error del cliente y ensuciaba el log con stack traces.
+    // El mensaje es genérico a propósito: el de Jackson puede incluir nombres de clases internas.
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> handleUnreadableBody(Exception ex) {
+        return ResponseEntity.status(400).body(Map.of("error", "El cuerpo de la petición no es un JSON válido."));
+    }
+
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, String>> handleMissingParam(org.springframework.web.bind.MissingServletRequestParameterException ex) {
+        return ResponseEntity.status(400).body(Map.of("error", "Falta el parámetro obligatorio '" + ex.getParameterName() + "'."));
+    }
+
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.status(400).body(Map.of("error", "Valor inválido para el parámetro '" + ex.getName() + "'."));
+    }
+
     @ExceptionHandler(ExcelExportService.TooManyExportsException.class)
     public ResponseEntity<Map<String, String>> handleTooManyExportsException(ExcelExportService.TooManyExportsException ex) {
         return ResponseEntity.status(429).body(Map.of("error", ex.getMessage()));

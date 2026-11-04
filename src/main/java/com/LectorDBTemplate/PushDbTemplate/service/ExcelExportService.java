@@ -69,6 +69,22 @@ public class ExcelExportService {
         }
     }
 
+    // Filas por ida y vuelta al servidor durante la exportación. Sin fijarlo, cada driver usa su
+    // valor por defecto: Oracle trae 10 filas por round-trip (exportar 1M filas = 100.000 viajes
+    // de red), y SQL Server/SQLite no tienen pista de lectura incremental. Con un fetchSize
+    // explícito el ResultSet se recorre por bloques en vez de acumularse.
+    static final int EXPORT_FETCH_SIZE = 1_000;
+
+    private void streamQuery(String sql, Object[] params, RowCallbackHandler handler) {
+        getJdbcTemplate().query(con -> {
+            java.sql.PreparedStatement ps = con.prepareStatement(sql,
+                    java.sql.ResultSet.TYPE_FORWARD_ONLY, java.sql.ResultSet.CONCUR_READ_ONLY);
+            ps.setFetchSize(EXPORT_FETCH_SIZE);
+            new org.springframework.jdbc.core.ArgumentPreparedStatementSetter(params).setValues(ps);
+            return ps;
+        }, handler);
+    }
+
     private static final char[] RISKY_SPREADSHEET_PREFIXES = {'=', '+', '-', '@', '\t', '\r'};
 
     private String sanitizeForSpreadsheet(String value) {
@@ -239,6 +255,13 @@ public class ExcelExportService {
             Map<String, Map<String, String>> fkLookups = new HashMap<>();
             try {
                 for (ForeignKeyInfo fk : foreignKeyService.getForeignKeys(schema, tableName)) {
+                    // Solo FKs de columnas que efectivamente se exportan: rowWriter busca el lookup
+                    // por nombre de columna exportada, así que el de cualquier otra FK nunca se
+                    // usaba, pero igual costaba un SELECT DISTINCT sobre toda la tabla más las
+                    // consultas por lotes a la tabla referenciada.
+                    if (!validatedColumns.contains(fk.fkColumn())) {
+                        continue;
+                    }
                     if (fk.enabled() && schemaMetadataService.isTableValid(fk.referencedSchema(), fk.referencedTable())) {
 
                         List<Object> distinctParams = new ArrayList<>();
@@ -303,7 +326,7 @@ public class ExcelExportService {
                     }
                 };
 
-                getJdbcTemplate().query(sql, rowWriter, queryParams.toArray());
+                streamQuery(sql, queryParams.toArray(), rowWriter);
                 workbook.write(outputStream);
             }
         } finally {
@@ -359,7 +382,7 @@ public class ExcelExportService {
                     }
                 };
 
-                getJdbcTemplate().query(built.selectAllSql(), rowWriter, built.selectAllParams().toArray());
+                streamQuery(built.selectAllSql(), built.selectAllParams().toArray(), rowWriter);
                 workbook.write(outputStream);
             }
         } finally {

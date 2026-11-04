@@ -353,4 +353,291 @@ class CustomReportServiceTest {
         verify(appJdbcTemplate).update(anyString(), eq("abc-123"));
         verifyNoInteractions(jdbcTemplate);
     }
+
+    // --- Auditoría 2026-11: casos reales adicionales del constructor de SQL ---
+
+    private ArgumentCaptor<Object[]> pagedParams() {
+        ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForList(anyString(), params.capture());
+        return params;
+    }
+
+    @Test
+    void nullQueryOrMissingBaseTable_isRejectedAsBadRequest() {
+        CustomReportService service = newService();
+
+        assertThatThrownBy(() -> service.executeCustomReportPreview(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.executeCustomReportPreview(
+                new CustomReportQuery(null, null, null, null, null, null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void baseTable_notInWhitelist_isRejected() {
+        CustomReportService service = newService();
+        when(schemaMetadataService.isTableValid("sys", "objects")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.executeCustomReportPreview(new CustomReportQuery(
+                new TableRef("sys", "objects", "t0"), null, null, null, null, null, null, null)))
+                .isInstanceOf(SecurityException.class);
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void noColumnsSelected_projectsEveryBaseTableColumn() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        CustomReportResult result = service.executeCustomReportPreview(baseOnlyQuery("t0", null, null, null, null));
+
+        assertThat(result.columns()).extracting(ReportColumn::column).containsExactly("id", "clienteId", "monto", "fecha");
+        assertThat(result.generatedSql()).contains("[t0].[monto] AS [monto]");
+    }
+
+    @Test
+    void column_withoutLabel_getsAliasPrefixedLabel() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        CustomReportResult result = service.executeCustomReportPreview(
+                baseOnlyQuery("t0", List.of(new ReportColumn(null, "monto", "  ")), null, null, null));
+
+        assertThat(result.columns()).containsExactly(new ReportColumn("t0", "monto", "t0_monto"));
+    }
+
+    @Test
+    void column_notInTable_isRejected() {
+        CustomReportService service = newService();
+
+        assertThatThrownBy(() -> service.executeCustomReportPreview(
+                baseOnlyQuery("t0", List.of(new ReportColumn("t0", "password", "x")), null, null, null)))
+                .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void columnLabel_withClosingBracket_isEscapedNotInjected() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        CustomReportResult result = service.executeCustomReportPreview(
+                baseOnlyQuery("t0", List.of(new ReportColumn("t0", "id", "x] FROM sys.objects --")), null, null, null));
+
+        assertThat(result.generatedSql()).contains("AS [x]] FROM sys.objects --]");
+    }
+
+    @Test
+    void notLikeAndDifferentOperators_bindValuesInOrder_withAndOrLogic() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        service.executeCustomReportPreview(baseOnlyQuery("t0", List.of(new ReportColumn("t0", "id", "Id")), List.of(
+                new ReportFilter("t0", "monto", ">=", "100", null, null),
+                new ReportFilter("t0", "fecha", "!=", "2024-01-01", null, "or"),
+                new ReportFilter("t0", "clienteId", "not like", "7", null, "XOR") // lógica inválida → AND
+        ), null, null));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForList(sql.capture(), params.capture());
+        assertThat(sql.getValue()).contains("WHERE [t0].[monto] >= ? OR [t0].[fecha] != ? AND [t0].[clienteId] NOT LIKE ?");
+        assertThat(params.getValue()).containsExactly("100", "2024-01-01", "%7%", 0, 15);
+    }
+
+    @Test
+    void filtersWithMissingValues_areSkipped_andDoNotLeaveDanglingLogic() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        CustomReportResult result = service.executeCustomReportPreview(baseOnlyQuery("t0", List.of(new ReportColumn("t0", "id", "Id")), List.of(
+                new ReportFilter("t0", "monto", "BETWEEN", "1", null, "AND"),
+                new ReportFilter("t0", "monto", "=", null, null, "AND"),
+                new ReportFilter("t0", "monto", "IN", " , ,", null, "AND"),
+                new ReportFilter("t0", "  ", "=", "1", null, "AND")
+        ), null, null));
+
+        assertThat(result.generatedSql()).doesNotContain("WHERE");
+    }
+
+    @Test
+    void sqlInjectionInFilterValue_isAlwaysBound() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+        String payload = "1; DROP TABLE Facturas; --";
+
+        CustomReportResult result = service.executeCustomReportPreview(baseOnlyQuery("t0", List.of(new ReportColumn("t0", "id", "Id")),
+                List.of(new ReportFilter("t0", "id", "=", payload, null, null)), null, null));
+
+        assertThat(result.generatedSql()).doesNotContain("DROP");
+        assertThat(pagedParams().getValue()[0]).isEqualTo(payload);
+    }
+
+    @Test
+    void sortWithoutDistinct_usesRequestedColumnsAndDirections_andIgnoresUnknownAlias() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        CustomReportResult result = service.executeCustomReportPreview(baseOnlyQuery("t0", List.of(new ReportColumn("t0", "id", "Id")), null, List.of(
+                new ReportSort("t0", "fecha", "desc"),
+                new ReportSort(null, "monto", "cualquiera"),
+                new ReportSort("zz", "monto", "DESC")
+        ), false));
+
+        assertThat(result.generatedSql()).endsWith("ORDER BY [t0].[fecha] DESC, [t0].[monto] ASC");
+    }
+
+    @Test
+    void noSort_onSqlServer_usesOrderBySelectNullForStablePaginationSyntax() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        CustomReportResult result = service.executeCustomReportPreview(baseOnlyQuery("t0", List.of(new ReportColumn("t0", "id", "Id")), null, null, null));
+
+        assertThat(result.generatedSql()).endsWith("ORDER BY (SELECT NULL)");
+    }
+
+    @Test
+    void distinct_countWrapsDistinctSubquery() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        service.executeCustomReportPreview(baseOnlyQuery("t0", List.of(new ReportColumn("t0", "clienteId", "Cliente")), null, null, true));
+
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForObject(countSql.capture(), eq(Long.class), any(Object[].class));
+        assertThat(countSql.getValue()).contains("SELECT DISTINCT [t0].[clienteId] AS [c0]").contains("AS [__distinct_count_wrapper]");
+    }
+
+    @Test
+    void limitAndOffset_areClampedLikeTheSingleTableEndpoint() {
+        CustomReportService service = newService();
+        when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1_000L);
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        CustomReportResult big = service.executeCustomReportPreview(new CustomReportQuery(
+                new TableRef("dbo", "Facturas", "t0"), null, List.of(new ReportColumn("t0", "id", "Id")), null, null, 5_000, 200, null));
+        assertThat(big.limit()).isEqualTo(100);
+        assertThat(big.offset()).isEqualTo(200);
+        assertThat(big.currentPage()).isEqualTo(3);
+        assertThat(big.totalPages()).isEqualTo(10);
+
+        CustomReportResult invalid = service.executeCustomReportPreview(new CustomReportQuery(
+                new TableRef("dbo", "Facturas", "t0"), null, List.of(new ReportColumn("t0", "id", "Id")), null, null, -1, -50, null));
+        assertThat(invalid.limit()).isEqualTo(15);
+        assertThat(invalid.offset()).isZero();
+    }
+
+    @Test
+    void joinTypeWithJoinSuffix_andMissingOnAlias_areHandled() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        JoinDefinition ok = new JoinDefinition("full join", new TableRef("dbo", "Clientes", "c"),
+                new JoinOn("t0", "clienteId"), new JoinOn("c", "id"));
+        CustomReportResult result = service.executeCustomReportPreview(new CustomReportQuery(
+                new TableRef("dbo", "Facturas", "t0"), List.of(ok), List.of(new ReportColumn("c", "nombre", "Cliente")), null, null, 15, 0, null));
+        assertThat(result.generatedSql()).contains("FULL JOIN [dbo].[Clientes] AS [c]");
+
+        JoinDefinition badAlias = new JoinDefinition("LEFT", new TableRef("dbo", "Clientes", "c"),
+                new JoinOn("zz", "clienteId"), new JoinOn("c", "id"));
+        assertThatThrownBy(() -> service.executeCustomReportPreview(new CustomReportQuery(
+                new TableRef("dbo", "Facturas", "t0"), List.of(badAlias), null, null, null, 15, 0, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void joinWithUnknownOnColumn_isRejected() {
+        CustomReportService service = newService();
+
+        JoinDefinition join = new JoinDefinition("LEFT", new TableRef("dbo", "Clientes", "c"),
+                new JoinOn("t0", "clienteId"), new JoinOn("c", "id]; DROP TABLE x;--"));
+
+        assertThatThrownBy(() -> service.executeCustomReportPreview(new CustomReportQuery(
+                new TableRef("dbo", "Facturas", "t0"), List.of(join), null, null, null, 15, 0, null)))
+                .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void incompleteJoinEntries_areSkippedSilently() {
+        CustomReportService service = newService();
+        stubEmptyResult();
+
+        java.util.List<JoinDefinition> joins = new java.util.ArrayList<>();
+        joins.add(null);
+        joins.add(new JoinDefinition("LEFT", null, null, null));
+        CustomReportResult result = service.executeCustomReportPreview(new CustomReportQuery(
+                new TableRef("dbo", "Facturas", "t0"), joins, List.of(new ReportColumn("t0", "id", "Id")), null, null, 15, 0, null));
+
+        assertThat(result.generatedSql()).doesNotContain("JOIN");
+    }
+
+    @Test
+    void postgresDialect_usesDoubleQuotesAndLimitOffset() {
+        CustomReportService service = newService();
+        when(dynamicDataSourceService.getDialect()).thenReturn(new com.LectorDBTemplate.PushDbTemplate.service.dialect.PostgreSqlDialect());
+        stubEmptyResult();
+
+        service.executeCustomReportPreview(baseOnlyQuery("t0", List.of(new ReportColumn("t0", "id", "Id")), null, null, null));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForList(sql.capture(), params.capture());
+        assertThat(sql.getValue()).contains("\"dbo\".\"Facturas\" AS \"t0\"").endsWith("LIMIT ? OFFSET ?");
+        assertThat(params.getValue()).containsExactly(15, 0);
+    }
+
+    // --- Plantillas: validación de entrada (auditoría 2026-11) ---
+
+    @Test
+    void saveReportTemplate_validatesRequiredFieldsAndColumnLimits() {
+        CustomReportService service = newService();
+
+        assertThatThrownBy(() -> service.saveReportTemplate(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.saveReportTemplate(new CustomReportService.ReportTemplate(null, "  ", null, "{}", null, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.saveReportTemplate(new CustomReportService.ReportTemplate(null, "x".repeat(256), null, "{}", null, null)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("255");
+        assertThatThrownBy(() -> service.saveReportTemplate(new CustomReportService.ReportTemplate(null, "R", "d".repeat(1001), "{}", null, null)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("1000");
+        assertThatThrownBy(() -> service.saveReportTemplate(new CustomReportService.ReportTemplate(null, "R", null, null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("configJson");
+        assertThatThrownBy(() -> service.saveReportTemplate(new CustomReportService.ReportTemplate("i".repeat(65), "R", null, "{}", null, null)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("64");
+
+        verifyNoInteractions(appJdbcTemplate);
+    }
+
+    @Test
+    void saveReportTemplate_boundaryLengths_areAccepted() {
+        CustomReportService service = newService();
+        when(appJdbcTemplate.queryForObject(anyString(), eq(Integer.class), anyString())).thenReturn(0);
+
+        var saved = service.saveReportTemplate(new CustomReportService.ReportTemplate(
+                "i".repeat(64), "n".repeat(255), "d".repeat(1000), "{}", null, null));
+
+        assertThat(saved.id()).hasSize(64);
+    }
+
+    @Test
+    void saveReportTemplate_existingId_updatesInsteadOfInserting_andTrimsName() {
+        CustomReportService service = newService();
+        when(appJdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq("abc"))).thenReturn(1);
+
+        var saved = service.saveReportTemplate(new CustomReportService.ReportTemplate(" abc ", "  Ventas  ", null, "{\"a\":1}", null, null));
+
+        assertThat(saved.id()).isEqualTo("abc");
+        assertThat(saved.name()).isEqualTo("Ventas");
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(appJdbcTemplate).update(sql.capture(), eq("Ventas"), eq(null), eq("{\"a\":1}"), eq("abc"));
+        assertThat(sql.getValue()).startsWith("UPDATE");
+    }
+
+    @Test
+    void deleteReportTemplate_blankOrNullId_isNoOp() {
+        CustomReportService service = newService();
+
+        service.deleteReportTemplate(null);
+        service.deleteReportTemplate("   ");
+
+        verifyNoInteractions(appJdbcTemplate);
+    }
 }

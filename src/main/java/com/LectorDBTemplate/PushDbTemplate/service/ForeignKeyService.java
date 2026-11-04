@@ -140,14 +140,36 @@ public class ForeignKeyService {
                         LEGACY_CUSTOM_FKS_FILE, CUSTOM_FKS_TABLE, migrated);
             }
         } catch (Exception e) {
+            // Incluye un IllegalArgumentException de saveCustomFks si el JSON legado trae una
+            // entrada incompleta: la migración se registra como fallida y la app sigue arrancando.
             log.warn("Error al leer {} legado: {}", LEGACY_CUSTOM_FKS_FILE, e.getMessage());
         }
     }
 
+    // @Transactional: el guardado es "borrar todas las FKs de la tabla + insertar las nuevas".
+    // Sin transacción, un fallo a mitad de los INSERT (p. ej. un valor más largo que la columna)
+    // dejaba la tabla sin ninguna de sus FKs personalizadas: se perdía la configuración previa.
+    // El rollback aplica sobre appJdbcTemplate porque usa el DataSource principal, que es el que
+    // gestiona el DataSourceTransactionManager autoconfigurado por Spring Boot.
+    @org.springframework.transaction.annotation.Transactional
     public synchronized void saveCustomFks(String schema, String tableName, List<ForeignKeyInfo> fks) {
+        if (schema == null || schema.isBlank() || tableName == null || tableName.isBlank()) {
+            throw new IllegalArgumentException("Esquema y tabla son obligatorios para guardar relaciones personalizadas.");
+        }
         Map<String, ForeignKeyInfo> byColumn = new LinkedHashMap<>();
         if (fks != null) {
             for (ForeignKeyInfo fk : fks) {
+                // Antes un elemento null o sin columna provocaba NullPointerException → 500.
+                if (fk == null || isBlank(fk.fkColumn()) || isBlank(fk.referencedTable()) || isBlank(fk.referencedColumn())) {
+                    throw new IllegalArgumentException(
+                            "Cada relación personalizada requiere fkColumn, referencedTable y referencedColumn.");
+                }
+                // Solo null (columna NOT NULL en push_custom_fks); "" se sigue aceptando como antes
+                // para motores sin esquema (SQLite).
+                if (fk.referencedSchema() == null) {
+                    throw new IllegalArgumentException(
+                            "La relación de la columna '" + fk.fkColumn() + "' requiere referencedSchema.");
+                }
                 byColumn.put(fk.fkColumn().toLowerCase(Locale.ROOT), new ForeignKeyInfo(
                         fk.fkColumn(), fk.referencedSchema(), fk.referencedTable(), fk.referencedColumn(),
                         fk.displayColumn(), fk.filterColumn(), fk.filterValue(), fk.enabled(), true));
@@ -155,16 +177,26 @@ public class ForeignKeyService {
         }
 
         appJdbcTemplate.update("DELETE FROM " + CUSTOM_FKS_TABLE + " WHERE schema_name = ? AND table_name = ?", schema, tableName);
-        for (ForeignKeyInfo fk : byColumn.values()) {
-            appJdbcTemplate.update(
+        if (!byColumn.isEmpty()) {
+            // Un solo batchUpdate (un round-trip) en vez de un INSERT por relación.
+            List<Object[]> rows = new ArrayList<>(byColumn.size());
+            for (ForeignKeyInfo fk : byColumn.values()) {
+                rows.add(new Object[]{
+                        schema, tableName, fk.fkColumn(), fk.referencedSchema(), fk.referencedTable(), fk.referencedColumn(),
+                        fk.displayColumn(), fk.filterColumn(), fk.filterValue(), fk.enabled() ? 1 : 0});
+            }
+            appJdbcTemplate.batchUpdate(
                     "INSERT INTO " + CUSTOM_FKS_TABLE +
                     " (schema_name, table_name, fk_column, referenced_schema, referenced_table, referenced_column, display_column, filter_column, filter_value, enabled)" +
                     " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    schema, tableName, fk.fkColumn(), fk.referencedSchema(), fk.referencedTable(), fk.referencedColumn(),
-                    fk.displayColumn(), fk.filterColumn(), fk.filterValue(), fk.enabled() ? 1 : 0);
+                    rows);
         }
 
         evictCacheForTable(schema, tableName);
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     private List<ForeignKeyInfo> loadCustomFks(String schema, String tableName) {
