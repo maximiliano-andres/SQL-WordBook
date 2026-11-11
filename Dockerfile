@@ -12,7 +12,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- Etapa 2: build del backend (Maven) ----
-FROM eclipse-temurin:21-jdk AS backend-build
+FROM eclipse-temurin:25-jdk AS backend-build
 WORKDIR /app
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
@@ -26,7 +26,7 @@ COPY --from=frontend-build /app/frontend/dist/ src/main/resources/static/
 RUN ./mvnw -B -q clean package -DskipTests
 
 # ---- Etapa 3: runtime ----
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 # curl solo para el HEALTHCHECK (se limpia la caché de apt para no engordar la imagen).
 RUN apt-get update \
