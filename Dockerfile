@@ -4,7 +4,7 @@
 # contenedor y escalar horizontalmente con varias réplicas detrás de un balanceador.
 
 # ---- Etapa 1: build del frontend (Vite) ----
-FROM node:22-slim AS frontend-build
+FROM node:25-slim AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
