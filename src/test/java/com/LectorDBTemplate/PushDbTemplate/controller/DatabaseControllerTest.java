@@ -8,6 +8,7 @@ import com.LectorDBTemplate.PushDbTemplate.service.ExcelExportService;
 import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService;
 import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.ForeignKeyResolution;
 import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService;
+import com.LectorDBTemplate.PushDbTemplate.service.SensitiveColumnMasker;
 import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService.TableInfo;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * DatabaseService (ver auditoría, hallazgo F6), así que cada uno se mockea por separado.
  */
 @WebMvcTest(controllers = DatabaseController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, SensitiveColumnMasker.class})
 @TestPropertySource(properties = {
         "app.security.username=test-user",
         "app.security.password=test-pass"
@@ -612,5 +613,34 @@ class DatabaseControllerTest {
         mockMvc.perform(post("/api/db/custom-reports/templates").with(auth()).contentType("application/json").content("{\"configJson\":\"{}\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("El nombre del reporte es obligatorio."));
+    }
+
+    // --- Cabeceras de seguridad adicionales (8.26) y defensa CSRF por Origin (8.28) ---
+
+    @Test
+    void securityHeaders_includeFrameAncestorsReferrerAndPermissionsPolicy() throws Exception {
+        when(schemaMetadataService.getTables()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/db/tables").with(auth()))
+                .andExpect(header().string("Content-Security-Policy", org.hamcrest.Matchers.containsString("frame-ancestors 'none'")))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("Permissions-Policy", org.hamcrest.Matchers.containsString("camera=()")));
+    }
+
+    @Test
+    void stateChangingRequest_fromForeignOrigin_isRejected_beforeReachingServices() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/db/custom-reports/templates/abc").with(auth())
+                        .header("Origin", "https://sitio-malicioso.com"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verify(customReportService, org.mockito.Mockito.never()).deleteReportTemplate(any());
+    }
+
+    @Test
+    void stateChangingRequest_fromSameOrigin_isAllowed() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/db/custom-reports/templates/abc").with(auth())
+                        .header("Origin", "http://localhost"))
+                .andExpect(status().isNoContent());
     }
 }

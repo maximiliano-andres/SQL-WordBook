@@ -1,0 +1,19 @@
+# Perfil de producción (SPRING_PROFILES_ACTIVE=prod). Asume la app detrás de un proxy inverso
+# con HTTPS (nginx, Traefik, balanceador de nube).
+server:
+  # Respeta X-Forwarded-Proto/For del proxy: necesario para que la app sepa que la petición
+  # original fue HTTPS (cookie Secure, cabecera HSTS) y para registrar la IP real del cliente.
+  # Solo es seguro si el proxy reescribe esas cabeceras (no deja pasar las del cliente).
+  forward-headers-strategy: native
+  servlet:
+    session:
+      cookie:
+        secure: ${SESSION_COOKIE_SECURE:true}
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  endpoint:
+    health:
+      show-details: never

@@ -25,7 +25,7 @@ export default function CustomReports({
   setColumnsCache = () => {},
   uxMode = 'simple'
 }) {
-  const { success, error: toastError, warning: toastWarning, info: toastInfo, confirm } = useToast();
+  const { success, error: toastError, warning: toastWarning, confirm } = useToast();
   const { apiFetch } = useAuth();
   // --- Estados de Plantilla / Configuración ---
   const [reportId, setReportId] = useState(null);
@@ -309,7 +309,6 @@ export default function CustomReports({
       if (index < 0 || index >= prev.length) return prev;
       const next = [...prev];
       const target = next[index];
-      const tableObj = participatingTables.find(t => t.alias === newTableAlias);
       const label = newLabel || (target ? target.label : newColumn);
       next[index] = {
         tableAlias: newTableAlias,
@@ -318,7 +317,7 @@ export default function CustomReports({
       };
       return next;
     });
-  }, [participatingTables]);
+  }, []);
 
   // Mover columna arriba / abajo en la secuencia del reporte
   const handleMoveColumn = useCallback((index, direction) => {
@@ -702,7 +701,7 @@ export default function CustomReports({
         loadJoinSuggestionsForTables(allParticipating);
       }
       success(`Plantilla "${tpl.name}" cargada correctamente`);
-    } catch (e) {
+    } catch {
       toastError('Error al leer el archivo de configuración de la plantilla.');
     }
   }, [loadJoinSuggestionsForTables, success, toastError]);
@@ -726,7 +725,7 @@ export default function CustomReports({
             setReportId(prevId => (prevId === id ? null : prevId));
             success('Plantilla eliminada correctamente');
           }
-        } catch (err) {
+        } catch {
           toastError('Error al eliminar la plantilla.');
         }
       }

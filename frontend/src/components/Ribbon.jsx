@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Database, RefreshCw, Download, Info, Settings,
-  ChevronLeft, ChevronRight, Table, Cpu, ShieldAlert, Link2,
+  Database, RefreshCw, Download, Settings,
+  ChevronLeft, ChevronRight, Table, Cpu, Link2,
   HelpCircle, Layers, Plug, LogOut, User
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';

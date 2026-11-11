@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Mantiene la configuración de logging por defecto de Spring Boot (consola y, si se define
+  LOG_FILE, archivo) y agrega un archivo separado para el logger AUDIT (ver AuditLog.java).
+
+  ISO/IEC 27002:2022 8.15: los registros de auditoría se guardan aparte de los técnicos para
+  poder retenerlos más tiempo y protegerlos de forma independiente. Directorio configurable con
+  AUDIT_LOG_DIR (por defecto ./logs) y retención con AUDIT_LOG_MAX_HISTORY (días, por defecto 365).
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+
+    <springProperty scope="context" name="AUDIT_DIR" source="app.audit.log-dir" defaultValue="logs"/>
+    <springProperty scope="context" name="AUDIT_HISTORY" source="app.audit.max-history" defaultValue="365"/>
+
+    <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${AUDIT_DIR}/audit.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${AUDIT_DIR}/audit.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>${AUDIT_HISTORY}</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <!-- Fecha ISO-8601 con zona horaria (8.17 Sincronización de relojes: el servidor debe usar NTP) -->
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- additivity=true: los eventos de auditoría también aparecen en la consola/log técnico -->
+    <logger name="AUDIT" level="INFO" additivity="true">
+        <appender-ref ref="AUDIT_FILE"/>
+    </logger>
+</configuration>

@@ -28,10 +28,23 @@ RUN ./mvnw -B -q clean package -DskipTests
 # ---- Etapa 3: runtime ----
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-# Ejecuta como usuario sin privilegios en vez de root
-RUN useradd --system --create-home appuser
+# curl solo para el HEALTHCHECK (se limpia la caché de apt para no engordar la imagen).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+# Ejecuta como usuario sin privilegios en vez de root. /app/logs guarda el registro de
+# auditoría (logs/audit.log, ver AuditLog.java): montarlo como volumen para conservarlo
+# entre despliegues, p. ej. -v pushdb-audit:/app/logs
+RUN useradd --system --create-home appuser \
+    && mkdir -p /app/logs \
+    && chown appuser:appuser /app/logs
+VOLUME ["/app/logs"]
 COPY --from=backend-build /app/target/*.jar app.jar
 USER appuser
 EXPOSE 8080
-# El orquestador debe apuntar sus readiness/liveness probes a /actuator/health.
+# Docker marca el contenedor como "unhealthy" si la app deja de responder (ISO/IEC 25010
+# Fiabilidad). Un orquestador debe usar /actuator/health/liveness y /actuator/health/readiness.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://localhost:8080/actuator/health/liveness || exit 1
+# Detrás de un proxy HTTPS, activar el perfil de producción: -e SPRING_PROFILES_ACTIVE=prod
 ENTRYPOINT ["java", "-jar", "app.jar"]

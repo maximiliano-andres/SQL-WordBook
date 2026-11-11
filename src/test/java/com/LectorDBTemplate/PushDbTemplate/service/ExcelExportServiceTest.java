@@ -345,4 +345,40 @@ class ExcelExportServiceTest {
                     .isInstanceOf(SecurityException.class);
         }
     }
+
+    // --- Trazabilidad (5.12 / 8.12) y enmascaramiento (8.11) ---
+
+    @Test
+    void exportTable_addsTraceabilityProperties_andConfidentialFooter_andReturnsRowCount() throws Exception {
+        validTable(2, "id");
+        streamRows(new Object[]{1}, new Object[]{2});
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        long rows = service.exportTableToExcel("dbo", "Empleados", List.of("id"), out);
+
+        assertThat(rows).isEqualTo(2);
+        try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()))) {
+            var core = wb.getProperties().getCoreProperties();
+            assertThat(core.getCreator()).isEqualTo("anonymous");
+            assertThat(core.getTitle()).isEqualTo("dbo.Empleados");
+            assertThat(core.getCategory()).isEqualTo(ExcelExportService.CLASSIFICATION);
+            assertThat(wb.getProperties().getCustomProperties().getProperty("Clasificacion")).isNotNull();
+            assertThat(wb.getSheetAt(0).getFooter().getCenter()).isEqualTo(ExcelExportService.CLASSIFICATION);
+        }
+    }
+
+    @Test
+    void exportTable_masksConfiguredSensitiveColumns() throws Exception {
+        ExcelExportService masked = new ExcelExportService(dynamicDataSourceService, schemaMetadataService,
+                foreignKeyService, customReportService, 1_000, 2, new SensitiveColumnMasker("sueldo*"));
+        validTable(1, "nombre", "sueldo_base");
+        streamRows(new Object[]{"Ana", 1_250_000});
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        masked.exportTableToExcel("dbo", "Empleados", List.of("nombre", "sueldo_base"), out);
+
+        Sheet sheet = readSheet(out);
+        assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("Ana");
+        assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo(SensitiveColumnMasker.MASK);
+    }
 }

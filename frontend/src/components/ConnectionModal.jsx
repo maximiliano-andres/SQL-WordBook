@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Database, Server, CheckCircle2, AlertCircle, X,
-  Activity, Play, Save, Trash2, Shield,
-  HardDrive, Cpu, Terminal, Key, Globe, FolderOpen
+  Activity, Play, Save, Trash2,
+  HardDrive, FolderOpen
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -33,8 +33,8 @@ export default function ConnectionModal({ isOpen, onClose, onConnectionSuccess }
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [customJdbcUrl, setCustomJdbcUrl] = useState('');
-  const [sslMode, setSslMode] = useState('prefer');
-  const [trustCert, setTrustCert] = useState(true);
+  const [sslMode] = useState('prefer');
+  const [trustCert] = useState(true);
 
   // Estados de Operación
   const [isTesting, setIsTesting] = useState(false);

@@ -6,7 +6,7 @@ const STORAGE_KEY = 'pushdb_saved_connections';
 // infraestructura ante XSS, extensiones maliciosas o acceso físico al equipo). El usuario
 // debe volver a escribir la contraseña cada vez que carga un perfil guardado.
 function stripSensitiveFields(profile) {
-  const { password, ...safeProfile } = profile;
+  const { password: _password, ...safeProfile } = profile;
   return safeProfile;
 }
 

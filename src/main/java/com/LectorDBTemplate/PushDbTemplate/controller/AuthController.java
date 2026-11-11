@@ -1,5 +1,6 @@
 package com.LectorDBTemplate.PushDbTemplate.controller;
 
+import com.LectorDBTemplate.PushDbTemplate.config.AuditLog;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -62,6 +63,9 @@ public class AuthController {
      */
     @PostMapping("/logout")
     public ResponseEntity<Map<String, Object>> logout(HttpServletRequest request) {
+        if (!"anonymous".equals(AuditLog.currentUser())) {
+            AuditLog.event("LOGOUT", AuditLog.SUCCESS, null);
+        }
         var session = request.getSession(false);
         if (session != null) {
             session.invalidate();

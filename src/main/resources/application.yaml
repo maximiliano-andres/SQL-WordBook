@@ -1,10 +1,17 @@
 spring:
   application:
     name: PushDbTemplate
+  # Apagado ordenado: al reiniciar/desplegar, las peticiones y exportaciones en curso terminan
+  # antes de cerrar (ISO/IEC 25010 Fiabilidad).
+  lifecycle:
+    timeout-per-shutdown-phase: ${SHUTDOWN_TIMEOUT:60s}
   config:
     import: "optional:file:.env[.properties]"
   datasource:
-    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=CL3530BD01MAP;encrypt=true;trustServerCertificate=true}
+    # trustServerCertificate=false por defecto: se valida el certificado TLS del servidor
+    # (ISO/IEC 27002:2022 8.24). Para SQL Server local con certificado autofirmado, usar el
+    # perfil dev (SPRING_PROFILES_ACTIVE=dev) o definir DB_URL en el .env.
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=CL3530BD01MAP;encrypt=true;trustServerCertificate=false}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
@@ -14,7 +21,9 @@ spring:
       idle-timeout: 30000
       max-lifetime: 1800000
       connection-timeout: 20000
-      leak-detection-threshold: 2000
+      # 60 s (antes 2 s): las exportaciones en streaming retienen la conexión legítimamente más de
+      # 2 s y generaban falsas alarmas de "connection leak" en el log.
+      leak-detection-threshold: ${DB_LEAK_DETECTION_MS:60000}
       pool-name: SqlServerHikariCP
       # Optimización adicional del driver JDBC para SQL Server
       data-source-properties:
@@ -39,6 +48,7 @@ spring:
     baseline-version: 0
 
 server:
+  shutdown: graceful
   compression:
     enabled: true
     mime-types: application/json,text/html,text/plain,text/css,application/javascript
@@ -54,13 +64,37 @@ server:
         # false por defecto porque el desarrollo local corre en http://localhost (una cookie
         # Secure no viajaría). En producción detrás de HTTPS, definir SESSION_COOKIE_SECURE=true.
         secure: ${SESSION_COOKIE_SECURE:false}
-      timeout: 8h
+      # Tiempo máximo de INACTIVIDAD (ISO/IEC 27002:2022 8.5). La duración máxima absoluta de la
+      # sesión, haya o no actividad, es app.security.session-max-lifetime.
+      timeout: ${SESSION_IDLE_TIMEOUT:30m}
 
 # Credenciales HTTP Basic obligatorias para proteger /api/** (ver .env.example)
 app:
   security:
     username: ${APP_USER}
     password: ${APP_PASSWORD}
+    # Duración máxima absoluta de una sesión (ver SessionLifetimeFilter).
+    session-max-lifetime: ${SESSION_MAX_LIFETIME:8h}
+    # Destinos permitidos para "Cambiar conexión" (ver DynamicDataSourceService). Vacío = cualquiera.
+    # Ej.: DB_ALLOWED_HOSTS=db01.empresa.local,10.0.0.15,*.bd.empresa.local,sqlite
+    allowed-db-hosts: ${DB_ALLOWED_HOSTS:}
+    # true = las conexiones creadas desde "Cambiar conexión" siempre validan el certificado TLS del
+    # servidor (trustServerCertificate=true se reescribe a false). Requiere certificados válidos.
+    require-db-tls-validation: ${DB_REQUIRE_TLS_VALIDATION:false}
+    # Orígenes extra aceptados en peticiones que modifican estado (ver OriginCheckFilter). El
+    # propio origen de la app siempre se acepta; por defecto se agrega el servidor de Vite.
+    allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  db:
+    # Tiempo máximo por sentencia SQL en la base consultada. 0 = sin límite.
+    query-timeout-seconds: ${DB_QUERY_TIMEOUT_SECONDS:120}
+  privacy:
+    # Columnas a enmascarar en pantalla y en Excel (ver SensitiveColumnMasker). Vacío = ninguna.
+    # Ej.: APP_MASKED_COLUMNS=sueldo*,rut,*password*
+    masked-columns: ${APP_MASKED_COLUMNS:}
+  audit:
+    # Registro de auditoría (ver AuditLog y logback-spring.xml).
+    log-dir: ${AUDIT_LOG_DIR:logs}
+    max-history: ${AUDIT_LOG_MAX_HISTORY:365}
   export:
     max-rows: ${EXPORT_MAX_ROWS:50000}
     # Exportaciones completas mantienen una conexión del pool ocupada durante todo el streaming;
@@ -75,3 +109,6 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      # /actuator/health/liveness y /readiness para HEALTHCHECK de Docker u orquestadores.
+      probes:
+        enabled: true

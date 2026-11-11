@@ -373,4 +373,72 @@ class DynamicDataSourceServiceTest {
         String sanitized = ReflectionTestUtils.invokeMethod(dynamicDataSourceService, "sanitizeJdbcUrl", (Object) null);
         assertEquals("N/A", sanitized);
     }
+
+    // --- Destinos permitidos (DB_ALLOWED_HOSTS) y tiempo máximo por consulta ---
+
+    @Test
+    void extractHosts_coversEverySupportedUrlFormat() {
+        assertEquals(List.of("db01.empresa.local"), DynamicDataSourceService.extractHosts(
+                "jdbc:sqlserver://DB01.empresa.local:1433;databaseName=x;encrypt=true"));
+        assertEquals(List.of("srv"), DynamicDataSourceService.extractHosts("jdbc:sqlserver://srv\\SQLEXPRESS;databaseName=x"));
+        assertEquals(List.of("10.0.0.5"), DynamicDataSourceService.extractHosts("jdbc:postgresql://user:pw@10.0.0.5:5432/db?ssl=true"));
+        assertEquals(List.of("a", "b"), DynamicDataSourceService.extractHosts("jdbc:mysql://a:3306,b:3306/db"));
+        assertEquals(List.of("::1"), DynamicDataSourceService.extractHosts("jdbc:mariadb://[::1]:3306/db"));
+        assertEquals(List.of("orahost"), DynamicDataSourceService.extractHosts("jdbc:oracle:thin:@orahost:1521:ORCL"));
+        assertEquals(List.of("orahost"), DynamicDataSourceService.extractHosts("jdbc:oracle:thin:@//orahost:1521/svc"));
+        assertEquals(List.of("h1", "h2"), DynamicDataSourceService.extractHosts(
+                "jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=h1)(PORT=1521))(ADDRESS=(HOST=h2)))"));
+        assertTrue(DynamicDataSourceService.extractHosts("jdbc:sqlite:/tmp/x.db").isEmpty());
+    }
+
+    @Test
+    void withoutAllowlist_everyDestinationIsAllowed() {
+        DynamicDataSourceService svc = new DynamicDataSourceService(initialDataSource, cacheManager, 0, "");
+        assertNull(svc.validateDestination("jdbc:postgresql://cualquier-host:5432/db"));
+        assertNull(svc.validateDestination("jdbc:sqlite:/etc/algo.db"));
+    }
+
+    @Test
+    void withAllowlist_onlyListedHostsWildcardsAndSqliteTokenAreAllowed() {
+        DynamicDataSourceService svc = new DynamicDataSourceService(initialDataSource, cacheManager, 0,
+                "db01.empresa.local, *.bd.empresa.local");
+        assertNull(svc.validateDestination("jdbc:sqlserver://DB01.empresa.local:1433;databaseName=x"));
+        assertNull(svc.validateDestination("jdbc:postgresql://pg.bd.empresa.local/db"));
+        assertNotNull(svc.validateDestination("jdbc:postgresql://bd.empresa.local/db"));
+        assertNotNull(svc.validateDestination("jdbc:mysql://169.254.169.254:80/db"));
+        assertNotNull(svc.validateDestination("jdbc:mysql://db01.empresa.local,otro:3306/db"));
+        assertNotNull(svc.validateDestination("jdbc:sqlite:/etc/algo.db"));
+
+        DynamicDataSourceService withSqlite = new DynamicDataSourceService(initialDataSource, cacheManager, 0, "sqlite");
+        assertNull(withSqlite.validateDestination("jdbc:sqlite::memory:"));
+    }
+
+    @Test
+    void connectAndTest_rejectDestinationsOutsideAllowlist_beforeOpeningAnyConnection() {
+        DynamicDataSourceService svc = new DynamicDataSourceService(initialDataSource, cacheManager, 0, "db01.empresa.local");
+        var config = new DynamicDataSourceService.ConnectionConfig("POSTGRESQL", "10.0.0.99", 5432, "db", "u", "p", null, null, Map.of());
+
+        var test = svc.testConnection(config);
+        assertFalse(test.success());
+        assertTrue(test.message().contains("10.0.0.99"));
+
+        var connect = svc.connectTo(config);
+        assertFalse(connect.success());
+        assertTrue(connect.message().contains("no está en la lista"));
+    }
+
+    @Test
+    void queryTimeout_isAppliedToJdbcTemplate_andZeroMeansNoLimit() {
+        assertEquals(120, new DynamicDataSourceService(initialDataSource, cacheManager, 120, "").getJdbcTemplate().getQueryTimeout());
+        assertEquals(-1, new DynamicDataSourceService(initialDataSource, cacheManager, 0, "").getJdbcTemplate().getQueryTimeout());
+    }
+
+    @Test
+    void tlsPolicy_rewritesTrustServerCertificate_onlyWhenRequired() {
+        String url = "jdbc:sqlserver://srv:1433;databaseName=x;encrypt=true;TrustServerCertificate = TRUE";
+        DynamicDataSourceService relaxed = new DynamicDataSourceService(initialDataSource, cacheManager, 0, "", false);
+        DynamicDataSourceService strict = new DynamicDataSourceService(initialDataSource, cacheManager, 0, "", true);
+        assertEquals(url, relaxed.applyTlsPolicy(url));
+        assertEquals("jdbc:sqlserver://srv:1433;databaseName=x;encrypt=true;TrustServerCertificate = false", strict.applyTlsPolicy(url));
+    }
 }

@@ -40,7 +40,7 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
         // POST /api/auth/login: cada intento cuenta (comportamiento original).
         if (isLoginRequest(request)) {
             if (registerAttemptAndCheckLimit(ip)) {
-                reject(response);
+                reject(request, response);
                 return;
             }
             chain.doFilter(request, response);
@@ -55,7 +55,7 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
         // alternar entre rutas no da intentos extra.
         if (carriesBasicCredentials(request)) {
             if (isBlocked(ip)) {
-                reject(response);
+                reject(request, response);
                 return;
             }
             chain.doFilter(request, response);
@@ -68,7 +68,9 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private void reject(HttpServletResponse response) throws IOException {
+    private void reject(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        AuditLog.event("LOGIN_RATE_LIMITED", AuditLog.DENIED, "anonymous", request.getRemoteAddr(),
+                AuditLog.details("path", request.getRequestURI()));
         response.setStatus(429);
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write("{\"error\":\"Demasiados intentos\",\"message\":\"Intenta nuevamente en unos minutos.\"}");

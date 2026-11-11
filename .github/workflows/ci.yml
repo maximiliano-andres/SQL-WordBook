@@ -1,0 +1,98 @@
+# Integración continua (ISO/IEC 27002:2022 8.25 «Ciclo de vida de desarrollo seguro», 8.29
+# «Pruebas de seguridad» y 8.32 «Gestión de cambios»): cada push y pull request compila, prueba,
+# mide cobertura, audita dependencias y construye la imagen Docker.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Maven)
+    runs-on: ubuntu-latest
+    services:
+      # PushDbTemplateApplicationTests levanta el contexto completo (Flyway incluido) contra SQL Server.
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          # Contraseña solo para este contenedor efímero de CI: no corresponde a ningún entorno real.
+          MSSQL_SA_PASSWORD: "Ci_Only_Passw0rd!"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Ci_Only_Passw0rd!' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DB_URL: "jdbc:sqlserver://localhost:1433;databaseName=master;encrypt=true;trustServerCertificate=true"
+      DB_USERNAME: sa
+      DB_PASSWORD: "Ci_Only_Passw0rd!"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Pruebas + cobertura mínima (JaCoCo) + SBOM
+        run: ./mvnw -B verify
+      - name: Publicar reporte de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          retention-days: 14
+
+  frontend:
+    name: Frontend (Vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Análisis estático
+        run: npm run lint
+      - name: Pruebas
+        run: npm test
+      - name: Auditoría de dependencias (falla con severidad alta o crítica)
+        run: npm audit --audit-level=high
+      - name: Build
+        run: npm run build
+
+  dependency-review:
+    name: Revisión de dependencias nuevas
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  docker:
+    name: Imagen Docker
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen (sin publicar)
+        run: docker build -t multi-db-workbook:ci .

@@ -1,10 +1,15 @@
 package com.LectorDBTemplate.PushDbTemplate.controller;
 
+import com.LectorDBTemplate.PushDbTemplate.config.AuditLog;
 import com.LectorDBTemplate.PushDbTemplate.service.CustomReportService;
 import com.LectorDBTemplate.PushDbTemplate.service.CustomReportService.CustomReportQuery;
 import com.LectorDBTemplate.PushDbTemplate.service.CustomReportService.CustomReportResult;
 import com.LectorDBTemplate.PushDbTemplate.service.CustomReportService.ReportTemplate;
 import com.LectorDBTemplate.PushDbTemplate.service.DatabaseDiagnosticsService;
+import com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService;
+import com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectResult;
+import com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectionConfig;
+import com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.TestResult;
 import com.LectorDBTemplate.PushDbTemplate.service.ExcelExportService;
 import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService;
 import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.ForeignKeyInfo;
@@ -15,16 +20,29 @@ import com.LectorDBTemplate.PushDbTemplate.service.ForeignKeyService.SuggestedJo
 import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService;
 import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService.ColumnInfo;
 import com.LectorDBTemplate.PushDbTemplate.service.SchemaMetadataService.TableInfo;
+import com.LectorDBTemplate.PushDbTemplate.service.SensitiveColumnMasker;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 // El frontend se sirve desde el mismo origen (static/) en producción y el proxy
 // de Vite en desarrollo; no se necesita CORS. La API está protegida por
@@ -46,14 +64,17 @@ public class DatabaseController {
     private final CustomReportService customReportService;
     private final ExcelExportService excelExportService;
     private final DatabaseDiagnosticsService databaseDiagnosticsService;
-    private final com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService dynamicDataSourceService;
+    private final DynamicDataSourceService dynamicDataSourceService;
+    private final SensitiveColumnMasker masker;
 
     public DatabaseController(SchemaMetadataService schemaMetadataService,
                                ForeignKeyService foreignKeyService,
                                CustomReportService customReportService,
                                ExcelExportService excelExportService,
                                DatabaseDiagnosticsService databaseDiagnosticsService,
-                               com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService dynamicDataSourceService) {
+                               DynamicDataSourceService dynamicDataSourceService,
+                               SensitiveColumnMasker masker) {
+        this.masker = masker;
         this.schemaMetadataService = schemaMetadataService;
         this.foreignKeyService = foreignKeyService;
         this.customReportService = customReportService;
@@ -90,22 +111,40 @@ public class DatabaseController {
      * Prueba conectividad contra una base de datos sin alterar la conexión activa.
      */
     @PostMapping("/connection/test")
-    public ResponseEntity<com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.TestResult> testConnection(
-            @RequestBody com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectionConfig config) {
-        return ResponseEntity.ok(dynamicDataSourceService.testConnection(config));
+    public ResponseEntity<TestResult> testConnection(
+            @RequestBody ConnectionConfig config) {
+        TestResult result = dynamicDataSourceService.testConnection(config);
+        AuditLog.event("CONNECTION_TEST", result != null && result.success() ? AuditLog.SUCCESS : AuditLog.FAILURE,
+                connectionDetails(config));
+        return ResponseEntity.ok(result);
     }
 
     /**
      * Conecta y activa en caliente una nueva base de datos.
      */
     @PostMapping("/connection/connect")
-    public ResponseEntity<com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectResult> connect(
-            @RequestBody com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectionConfig config) {
-        com.LectorDBTemplate.PushDbTemplate.service.DynamicDataSourceService.ConnectResult result = dynamicDataSourceService.connectTo(config);
+    public ResponseEntity<ConnectResult> connect(
+            @RequestBody ConnectionConfig config) {
+        ConnectResult result = dynamicDataSourceService.connectTo(config);
+        AuditLog.event("CONNECTION_SWITCH", result.success() ? AuditLog.SUCCESS : AuditLog.FAILURE, connectionDetails(config));
         if (!result.success()) {
             return ResponseEntity.status(400).body(result);
         }
         return ResponseEntity.ok(result);
+    }
+
+    /** Datos del destino para la auditoría: nunca la contraseña ni la URL completa (puede traer credenciales). */
+    private static Map<String, Object> connectionDetails(ConnectionConfig config) {
+        if (config == null) {
+            return Map.of();
+        }
+        boolean customUrl = config.customJdbcUrl() != null && !config.customJdbcUrl().isBlank();
+        return AuditLog.details(
+                "engine", config.engineType(),
+                "host", customUrl ? DynamicDataSourceService.maskJdbcUrl(config.customJdbcUrl()) : config.host(),
+                "port", config.port(),
+                "database", config.databaseName(),
+                "dbUser", config.username());
     }
 
     // TTL corto para las cabeceras de caché del navegador en metadata poco cambiante
@@ -168,6 +207,17 @@ public class DatabaseController {
         long totalRows = schemaMetadataService.getTableCount(schema, name, filterColumn, filterOperator, filterValue, filterValue2);
         List<Map<String, Object>> data = schemaMetadataService.getTableData(schema, name, safeLimit, safeOffset, columns, filterColumn, filterOperator, filterValue, filterValue2);
         ForeignKeyResolution fkResolution = foreignKeyService.resolveForeignKeys(schema, name, data);
+        Map<String, List<FkCellResolution>> fkResolutions = fkResolution.resolutions();
+        if (masker.isEnabled() && data != null && !data.isEmpty()) {
+            Map<String, String> keys = data.get(0).keySet().stream()
+                    .collect(Collectors.toMap(Function.identity(), Function.identity(), (a, b) -> a, LinkedHashMap::new));
+            masker.maskRows(data, keys);
+            // La traducción de una FK sensible también revelaría el valor: se omite.
+            if (fkResolutions != null) {
+                fkResolutions = new HashMap<>(fkResolutions);
+                fkResolutions.keySet().removeIf(masker::isSensitive);
+            }
+        }
 
         int currentPage = (safeLimit == 0) ? 1 : (safeOffset / safeLimit) + 1;
         int totalPages = (safeLimit == 0) ? 1 : (int) Math.ceil((double) totalRows / safeLimit);
@@ -180,7 +230,7 @@ public class DatabaseController {
                 currentPage,
                 totalPages,
                 fkResolution.columns(),
-                fkResolution.resolutions()
+                fkResolutions
         ));
     }
 
@@ -196,18 +246,30 @@ public class DatabaseController {
             @RequestParam(required = false) String filterOperator,
             @RequestParam(required = false) String filterValue,
             @RequestParam(required = false) String filterValue2,
-            jakarta.servlet.http.HttpServletResponse response) throws Exception {
+            HttpServletResponse response) throws Exception {
 
         // Configurar respuesta para descarga de archivo Excel (.xlsx)
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         String filename = schema + "_" + name + "_report.xlsx";
 
-        org.springframework.http.ContentDisposition contentDisposition = org.springframework.http.ContentDisposition.builder("attachment")
-                .filename(filename, java.nio.charset.StandardCharsets.UTF_8)
+        ContentDisposition contentDisposition = ContentDisposition.builder("attachment")
+                .filename(filename, StandardCharsets.UTF_8)
                 .build();
-        response.setHeader(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
 
-        excelExportService.exportTableToExcel(schema, name, columns, filterColumn, filterOperator, filterValue, filterValue2, response.getOutputStream());
+        Map<String, Object> details = AuditLog.details(
+                "table", schema + "." + name,
+                "columns", columns == null ? 0 : columns.size(),
+                "filtered", filterColumn != null && !filterColumn.isBlank());
+        try {
+            long rows = excelExportService.exportTableToExcel(schema, name, columns, filterColumn, filterOperator, filterValue, filterValue2, response.getOutputStream());
+            details.put("rows", rows);
+            AuditLog.event("EXPORT_TABLE", AuditLog.SUCCESS, details);
+        } catch (Exception e) {
+            details.put("error", e.getClass().getSimpleName());
+            AuditLog.event("EXPORT_TABLE", AuditLog.FAILURE, details);
+            throw e;
+        }
     }
 
     /**
@@ -220,6 +282,8 @@ public class DatabaseController {
             @RequestBody List<ForeignKeyInfo> customFks) {
 
         foreignKeyService.saveCustomFks(schema, name, customFks);
+        AuditLog.event("RELATIONS_SAVE", AuditLog.SUCCESS, AuditLog.details(
+                "table", schema + "." + name, "relations", customFks == null ? 0 : customFks.size()));
         return ResponseEntity.ok().build();
     }
 
@@ -243,7 +307,13 @@ public class DatabaseController {
     @PostMapping("/custom-reports/preview")
     public ResponseEntity<CustomReportResult> previewCustomReport(
             @RequestBody CustomReportQuery query) {
-        return ResponseEntity.ok(customReportService.executeCustomReportPreview(query));
+        CustomReportResult result = customReportService.executeCustomReportPreview(query);
+        if (masker.isEnabled() && result != null && result.columns() != null) {
+            Map<String, String> labelToColumn = new LinkedHashMap<>();
+            result.columns().forEach(c -> labelToColumn.put(c.label(), c.column()));
+            masker.maskRows(result.data(), labelToColumn);
+        }
+        return ResponseEntity.ok(result);
     }
 
     /**
@@ -252,17 +322,31 @@ public class DatabaseController {
     @PostMapping("/custom-reports/export")
     public void exportCustomReport(
             @RequestBody CustomReportQuery query,
-            jakarta.servlet.http.HttpServletResponse response) throws Exception {
+            HttpServletResponse response) throws Exception {
 
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         String filename = "reporte_personalizado_" + System.currentTimeMillis() + ".xlsx";
 
-        org.springframework.http.ContentDisposition contentDisposition = org.springframework.http.ContentDisposition.builder("attachment")
-                .filename(filename, java.nio.charset.StandardCharsets.UTF_8)
+        ContentDisposition contentDisposition = ContentDisposition.builder("attachment")
+                .filename(filename, StandardCharsets.UTF_8)
                 .build();
-        response.setHeader(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
 
-        excelExportService.exportCustomReportToExcel(query, response.getOutputStream());
+        Map<String, Object> details = AuditLog.details(
+                "baseTable", query != null && query.baseTable() != null
+                        ? query.baseTable().schema() + "." + query.baseTable().name() : null,
+                "joins", query != null && query.joins() != null ? query.joins().size() : 0,
+                "columns", query != null && query.columns() != null ? query.columns().size() : 0,
+                "filters", query != null && query.filters() != null ? query.filters().size() : 0);
+        try {
+            long rows = excelExportService.exportCustomReportToExcel(query, response.getOutputStream());
+            details.put("rows", rows);
+            AuditLog.event("EXPORT_CUSTOM_REPORT", AuditLog.SUCCESS, details);
+        } catch (Exception e) {
+            details.put("error", e.getClass().getSimpleName());
+            AuditLog.event("EXPORT_CUSTOM_REPORT", AuditLog.FAILURE, details);
+            throw e;
+        }
     }
 
     /**
@@ -279,7 +363,11 @@ public class DatabaseController {
     @PostMapping("/custom-reports/templates")
     public ResponseEntity<ReportTemplate> saveReportTemplate(
             @RequestBody ReportTemplate template) {
-        return ResponseEntity.ok(customReportService.saveReportTemplate(template));
+        ReportTemplate saved = customReportService.saveReportTemplate(template);
+        AuditLog.event("TEMPLATE_SAVE", AuditLog.SUCCESS, AuditLog.details(
+                "templateId", saved != null ? saved.id() : null,
+                "name", saved != null ? saved.name() : null));
+        return ResponseEntity.ok(saved);
     }
 
     /**
@@ -288,6 +376,7 @@ public class DatabaseController {
     @DeleteMapping("/custom-reports/templates/{id}")
     public ResponseEntity<Void> deleteReportTemplate(@PathVariable String id) {
         customReportService.deleteReportTemplate(id);
+        AuditLog.event("TEMPLATE_DELETE", AuditLog.SUCCESS, AuditLog.details("templateId", id));
         return ResponseEntity.noContent().build();
     }
 
@@ -295,6 +384,7 @@ public class DatabaseController {
 
     @ExceptionHandler(SecurityException.class)
     public ResponseEntity<Map<String, String>> handleSecurityException(SecurityException ex) {
+        AuditLog.event("ACCESS_DENIED", AuditLog.DENIED, AuditLog.details("reason", ex.getMessage()));
         return ResponseEntity.status(403).body(Map.of("error", ex.getMessage()));
     }
 
@@ -307,18 +397,18 @@ public class DatabaseController {
     // inválido como limit=abc). Antes los capturaba handleGeneralException y respondían 500
     // "error interno", lo que ocultaba un error del cliente y ensuciaba el log con stack traces.
     // El mensaje es genérico a propósito: el de Jackson puede incluir nombres de clases internas.
-    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleUnreadableBody(Exception ex) {
         return ResponseEntity.status(400).body(Map.of("error", "El cuerpo de la petición no es un JSON válido."));
     }
 
-    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
-    public ResponseEntity<Map<String, String>> handleMissingParam(org.springframework.web.bind.MissingServletRequestParameterException ex) {
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, String>> handleMissingParam(MissingServletRequestParameterException ex) {
         return ResponseEntity.status(400).body(Map.of("error", "Falta el parámetro obligatorio '" + ex.getParameterName() + "'."));
     }
 
-    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<Map<String, String>> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.status(400).body(Map.of("error", "Valor inválido para el parámetro '" + ex.getName() + "'."));
     }
 
@@ -327,8 +417,8 @@ public class DatabaseController {
         return ResponseEntity.status(429).body(Map.of("error", ex.getMessage()));
     }
 
-    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
-    public ResponseEntity<Map<String, String>> handleDataAccessException(org.springframework.dao.DataAccessException ex) {
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<Map<String, String>> handleDataAccessException(DataAccessException ex) {
         // No se expone el mensaje de la causa raíz (rootCause) al cliente: puede contener
         // nombres de columnas/restricciones o fragmentos de la sentencia SQL. El detalle
         // completo queda en el log del servidor correlacionado con un id que sí es seguro

@@ -26,7 +26,7 @@ export default function App() {
 }
 
 function AppContent() {
-  const { success, error: toastError, warning, info, confirm } = useToast();
+  const { success, error: toastError, warning, info } = useToast();
   const { apiFetch, isAuthenticated } = useAuth();
 
   // Modo de Experiencia: 'simple' (Fácil tipo Excel / Buk) | 'advanced' (Modo DBA / SQL)
@@ -224,7 +224,7 @@ function AppContent() {
   }, [activeTable, limit, page, isAuthenticated, fetchTableDataAndSchema]);
 
   // Manejar cambio exitoso de conexión de base de datos
-  const handleConnectionSuccess = (newConnInfo) => {
+  const handleConnectionSuccess = () => {
     setActiveTable(null);
     setData([]);
     setColumns([]);
@@ -329,7 +329,9 @@ function AppContent() {
         try {
           const errJson = await response.json();
           errorMessage = errJson.error || errorMessage;
-        } catch (e) {}
+        } catch {
+          // Respuesta sin cuerpo JSON: se mantiene el mensaje genérico.
+        }
         throw new Error(errorMessage);
       }
       
@@ -413,7 +415,7 @@ function AppContent() {
     await submitCustomFks(payload);
   };
 
-  const handleDeleteCustomFk = async (columnName, fk) => {
+  const handleDeleteCustomFk = async (columnName) => {
     if (!activeTable) return;
 
     const payload = fkColumns

@@ -11,3 +11,4 @@ frontend/dist/
 .vscode/
 *.iml
 custom-fks.json
+logs/

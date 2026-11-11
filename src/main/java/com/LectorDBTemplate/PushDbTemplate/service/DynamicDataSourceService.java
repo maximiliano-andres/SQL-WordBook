@@ -7,6 +7,8 @@ import com.zaxxer.hikari.HikariDataSource;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -59,6 +61,20 @@ public class DynamicDataSourceService {
     private ConnectionConfig currentConfig;
     private String lastConnectionError = null;
 
+    // Tiempo máximo de ejecución por sentencia SQL (ISO/IEC 27002:2022 8.6 «Gestión de capacidad»):
+    // evita que un reporte con muchos cruces mantenga ocupada la base de datos indefinidamente.
+    // 0 = sin límite (comportamiento anterior).
+    private final int queryTimeoutSeconds;
+
+    // Destinos permitidos para conexiones dinámicas (ISO/IEC 27002:2022 8.20/8.22). Vacío = cualquier
+    // destino (comportamiento anterior). Ver isDestinationAllowed().
+    private final List<String> allowedDbHosts;
+
+    // Si es true, las conexiones dinámicas nunca aceptan certificados TLS sin validar
+    // (ISO/IEC 27002:2022 8.24): trustServerCertificate=true se reescribe a false. Por defecto false
+    // para no romper conexiones existentes a servidores con certificado autofirmado.
+    private final boolean requireTlsValidation;
+
     public record ConnectionConfig(
             String engineType,        // "SQLSERVER", "POSTGRESQL", "MYSQL", "MARIADB", "ORACLE", "SQLITE", "CUSTOM"
             String host,
@@ -87,10 +103,26 @@ public class DynamicDataSourceService {
     ) {}
 
     public DynamicDataSourceService(DataSource initialDataSource, CacheManager cacheManager) {
+        this(initialDataSource, cacheManager, 0, "");
+    }
+
+    public DynamicDataSourceService(DataSource initialDataSource, CacheManager cacheManager,
+                                    int queryTimeoutSeconds, String allowedDbHostsCsv) {
+        this(initialDataSource, cacheManager, queryTimeoutSeconds, allowedDbHostsCsv, false);
+    }
+
+    @Autowired
+    public DynamicDataSourceService(DataSource initialDataSource, CacheManager cacheManager,
+                                    @Value("${app.db.query-timeout-seconds:120}") int queryTimeoutSeconds,
+                                    @Value("${app.security.allowed-db-hosts:}") String allowedDbHostsCsv,
+                                    @Value("${app.security.require-db-tls-validation:false}") boolean requireTlsValidation) {
+        this.requireTlsValidation = requireTlsValidation;
         this.cacheManager = cacheManager;
         this.initialDataSource = initialDataSource;
+        this.queryTimeoutSeconds = Math.max(0, queryTimeoutSeconds);
+        this.allowedDbHosts = parseAllowedHosts(allowedDbHostsCsv);
         this.currentDataSource = initialDataSource;
-        this.currentJdbcTemplate = new JdbcTemplate(initialDataSource);
+        this.currentJdbcTemplate = newJdbcTemplate(initialDataSource);
 
         // Detectamos el dialecto del datasource inicial
         try (Connection conn = initialDataSource.getConnection()) {
@@ -138,8 +170,11 @@ public class DynamicDataSourceService {
      */
     public TestResult testConnection(ConnectionConfig config) {
         long start = System.currentTimeMillis();
-        String jdbcUrl = resolveJdbcUrl(config);
+        String jdbcUrl = applyTlsPolicy(resolveJdbcUrl(config));
         String urlError = validateJdbcUrl(jdbcUrl);
+        if (urlError == null) {
+            urlError = validateDestination(jdbcUrl);
+        }
         if (urlError != null) {
             return new TestResult(false, urlError, 0, null, null, null);
         }
@@ -176,8 +211,11 @@ public class DynamicDataSourceService {
      * y purgando todas las cachés de metadatos.
      */
     public synchronized ConnectResult connectTo(ConnectionConfig config) {
-        String jdbcUrl = resolveJdbcUrl(config);
+        String jdbcUrl = applyTlsPolicy(resolveJdbcUrl(config));
         String urlError = validateJdbcUrl(jdbcUrl);
+        if (urlError == null) {
+            urlError = validateDestination(jdbcUrl);
+        }
         if (urlError != null) {
             return new ConnectResult(false, urlError, null);
         }
@@ -229,7 +267,7 @@ public class DynamicDataSourceService {
         DataSource oldDataSource = this.currentDataSource;
         this.currentDialect = detectedDialect;
         this.currentDataSource = newDataSource;
-        this.currentJdbcTemplate = new JdbcTemplate(newDataSource);
+        this.currentJdbcTemplate = newJdbcTemplate(newDataSource);
         this.currentConfig = config;
         this.lastConnectionError = null;
 
@@ -266,7 +304,7 @@ public class DynamicDataSourceService {
         summary.put("databaseName", currentConfig != null && currentConfig.databaseName() != null ? currentConfig.databaseName() : "N/A");
         summary.put("username", currentConfig != null && currentConfig.username() != null ? currentConfig.username() : "N/A");
         summary.put("schema", currentConfig != null ? currentConfig.schema() : null);
-        summary.put("jdbcUrl", currentConfig != null ? sanitizeJdbcUrl(resolveJdbcUrl(currentConfig)) : "N/A");
+        summary.put("jdbcUrl", currentConfig != null ? sanitizeJdbcUrl(applyTlsPolicy(resolveJdbcUrl(currentConfig))) : "N/A");
         summary.put("hasError", lastConnectionError != null);
         summary.put("errorMessage", lastConnectionError);
         return summary;
@@ -365,6 +403,145 @@ public class DynamicDataSourceService {
             }
         }
         return null;
+    }
+
+    private static final java.util.regex.Pattern TRUST_SERVER_CERT_TRUE =
+            java.util.regex.Pattern.compile("(?i)(trustServerCertificate\\s*=\\s*)true");
+
+    /** Con requireTlsValidation, fuerza la validación del certificado del servidor (SQL Server). */
+    String applyTlsPolicy(String jdbcUrl) {
+        if (!requireTlsValidation || jdbcUrl == null) {
+            return jdbcUrl;
+        }
+        return TRUST_SERVER_CERT_TRUE.matcher(jdbcUrl).replaceAll("$1false");
+    }
+
+    private JdbcTemplate newJdbcTemplate(DataSource dataSource) {
+        JdbcTemplate template = new JdbcTemplate(dataSource);
+        if (queryTimeoutSeconds > 0) {
+            template.setQueryTimeout(queryTimeoutSeconds);
+        }
+        return template;
+    }
+
+    public int getQueryTimeoutSeconds() {
+        return queryTimeoutSeconds;
+    }
+
+    // --- Lista de destinos permitidos (DB_ALLOWED_HOSTS) ---------------------------------------
+    // Sin esta lista, cualquier usuario autenticado puede hacer que el SERVIDOR abra conexiones hacia
+    // cualquier host:puerto de la red interna (SSRF / escaneo de red) o, con SQLite, abrir cualquier
+    // archivo .db del disco del servidor. Formato: lista separada por comas de hosts exactos
+    // (db01.empresa.local, 10.0.0.15), comodines de subdominio (*.empresa.local) y la palabra
+    // especial "sqlite" para permitir archivos SQLite. Vacía = sin restricción.
+
+    static final String SQLITE_TOKEN = "sqlite";
+    private static final java.util.regex.Pattern ORACLE_HOST_PARAM =
+            java.util.regex.Pattern.compile("(?i)\\(\\s*HOST\\s*=\\s*([^)\\s]+)\\s*\\)");
+
+    static List<String> parseAllowedHosts(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(csv.split(","))
+                .map(s -> s.trim().toLowerCase(Locale.ROOT))
+                .filter(s -> !s.isEmpty())
+                .toList();
+    }
+
+    /** Devuelve el mensaje de error para el usuario si el destino no está permitido, o null. */
+    String validateDestination(String jdbcUrl) {
+        if (allowedDbHosts.isEmpty()) {
+            return null;
+        }
+        if (jdbcUrl.regionMatches(true, 0, "jdbc:sqlite:", 0, 12)) {
+            return allowedDbHosts.contains(SQLITE_TOKEN)
+                    ? null
+                    : "Las conexiones a archivos SQLite no están habilitadas en este servidor.";
+        }
+        List<String> hosts = extractHosts(jdbcUrl);
+        if (hosts.isEmpty()) {
+            return "No se pudo determinar el servidor de destino de la URL JDBC.";
+        }
+        for (String host : hosts) {
+            if (!isHostAllowed(host)) {
+                return "El servidor '" + host + "' no está en la lista de destinos permitidos. "
+                        + "Contacta al administrador de la plataforma.";
+            }
+        }
+        return null;
+    }
+
+    private boolean isHostAllowed(String host) {
+        for (String allowed : allowedDbHosts) {
+            if (allowed.startsWith("*.")) {
+                String suffix = allowed.substring(1); // ".empresa.local"
+                if (host.endsWith(suffix) && host.length() > suffix.length()) {
+                    return true;
+                }
+            } else if (allowed.equals(host)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Extrae los hosts de una URL JDBC de los motores soportados (sin puerto, instancia ni
+     * credenciales), en minúsculas. Lista vacía si no se pudo interpretar.
+     */
+    static List<String> extractHosts(String jdbcUrl) {
+        List<String> hosts = new ArrayList<>();
+        if (jdbcUrl == null) {
+            return hosts;
+        }
+        java.util.regex.Matcher m = ORACLE_HOST_PARAM.matcher(jdbcUrl);
+        while (m.find()) {
+            hosts.add(m.group(1).toLowerCase(Locale.ROOT));
+        }
+        if (!hosts.isEmpty()) {
+            return hosts;
+        }
+
+        String rest;
+        if (jdbcUrl.regionMatches(true, 0, "jdbc:oracle:", 0, 12)) {
+            int at = jdbcUrl.indexOf('@');
+            if (at < 0) return hosts;
+            rest = jdbcUrl.substring(at + 1);
+            if (rest.startsWith("//")) rest = rest.substring(2);
+        } else {
+            int slashes = jdbcUrl.indexOf("//");
+            if (slashes < 0) return hosts;
+            rest = jdbcUrl.substring(slashes + 2);
+        }
+
+        int end = rest.length();
+        for (char c : new char[]{'/', ';', '?'}) {
+            int i = rest.indexOf(c);
+            if (i >= 0 && i < end) end = i;
+        }
+        String authority = rest.substring(0, end);
+        int userInfo = authority.lastIndexOf('@');
+        if (userInfo >= 0) {
+            authority = authority.substring(userInfo + 1);
+        }
+
+        for (String part : authority.split(",")) {
+            String h = part.trim();
+            if (h.startsWith("[")) {                       // IPv6 [::1]:5432
+                int close = h.indexOf(']');
+                h = close > 0 ? h.substring(1, close) : h;
+            } else {
+                int backslash = h.indexOf('\\');           // SQL Server host\INSTANCIA
+                if (backslash >= 0) h = h.substring(0, backslash);
+                int colon = h.indexOf(':');
+                if (colon >= 0) h = h.substring(0, colon);
+            }
+            if (!h.isEmpty()) {
+                hosts.add(h.toLowerCase(Locale.ROOT));
+            }
+        }
+        return hosts;
     }
 
     private String sanitizeJdbcUrl(String url) {

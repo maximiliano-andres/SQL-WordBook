@@ -232,7 +232,6 @@ export default function Spreadsheet({
   error,
   totalRows,
   offset,
-  limit,
   fkColumns = [],
   fkResolutions = {},
   fkDisplayMode = 'both',

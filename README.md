@@ -21,7 +21,9 @@ pensada para equipos de **Recursos Humanos, Finanzas y Análisis** que necesitan
 [![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=flat-square&logo=mariadb&logoColor=white)](#-requisitos-previos)
 [![Oracle](https://img.shields.io/badge/Oracle-F80000?style=flat-square&logo=oracle&logoColor=white)](#-requisitos-previos)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)](#-requisitos-previos)
-[![Tests](https://img.shields.io/badge/tests-258_casos-2EA44F?style=flat-square)](#-calidad-y-pruebas)
+[![Tests](https://img.shields.io/badge/tests-369_casos-2EA44F?style=flat-square)](#-calidad-y-pruebas)
+[![Cobertura](https://img.shields.io/badge/cobertura-88%25-2EA44F?style=flat-square)](#-calidad-y-pruebas)
+[![ISO 27001 · 27002 · 25010](https://img.shields.io/badge/ISO-27001_·_27002_·_25010-1F6FEB?style=flat-square)](docs/cumplimiento-iso.md)
 [![Licencia](https://img.shields.io/badge/licencia-propietaria-555?style=flat-square)](pom.xml)
 
 [**Resumen**](#-el-proyecto-en-30-segundos) ·
@@ -44,7 +46,7 @@ pensada para equipos de **Recursos Humanos, Finanzas y Análisis** que necesitan
 | **La solución** | Una aplicación web con apariencia de hoja de cálculo para **explorar tablas, traducir códigos a nombres reales, cruzar información de varias tablas y descargar el resultado en Excel**, todo con clics. |
 | **Para quién** | Analistas de RRHH, Finanzas y Control de Gestión (uso diario) y administradores de bases de datos (modo técnico con diagnóstico del motor). |
 | **Seguridad** | Consulta en **modo solo lectura** sobre los datos de negocio, acceso protegido por usuario y contraseña, y protección contra inyección SQL y fórmulas maliciosas en Excel. |
-| **Alcance** | Aplicación full-stack completa: backend Java/Spring, frontend React, 6 motores de bases de datos, Docker y 258 casos de prueba automatizados. |
+| **Alcance** | Aplicación full-stack completa: backend Java/Spring, frontend React, 6 motores de bases de datos, Docker y 369 casos de prueba automatizados. |
 
 > [!IMPORTANT]
 > **Herramienta de uso individual.** Está diseñada para que **una persona** la ejecute en su equipo o servidor y trabaje con **una conexión activa a la vez**.
@@ -118,7 +120,7 @@ pensada para equipos de **Recursos Humanos, Finanzas y Análisis** que necesitan
 | **Frontend** | React 19 · Vite 6 | SPA con carga diferida (*lazy loading*) del módulo de reportes |
 | | CSS moderno nativo | Sistema de diseño propio: tokens, Grid, Flexbox, `clamp()`, *container-friendly*, sin frameworks CSS |
 | | lucide-react | Iconografía |
-| **Calidad** | JUnit 5 · Spring MockMvc · Vitest · Testing Library · oxlint | 218 pruebas de backend + 40 de frontend |
+| **Calidad** | JUnit 5 · Spring MockMvc · Vitest · Testing Library · oxlint | 329 pruebas de backend + 40 de frontend · cobertura de líneas 88 % (mínimo exigido 80 %) · CI en GitHub Actions |
 | **Infraestructura** | Docker multi-stage | Node 22 → JDK 21 → imagen final JRE 21 con usuario sin privilegios |
 
 ### Competencias técnicas que demuestra
@@ -287,7 +289,26 @@ Completa el archivo `.env`, que **nunca se sube a git** (está en `.gitignore`):
 | `EXPORT_MAX_ROWS` | | Máximo de filas por exportación a Excel (por defecto `50000`) |
 | `EXPORT_MAX_CONCURRENT` | | Exportaciones simultáneas permitidas (por defecto `2`) |
 | `DB_POOL_MAX_SIZE` / `DB_POOL_MIN_IDLE` | | Tamaño del pool de conexiones (por defecto `10` / `2`) |
-| `SESSION_COOKIE_SECURE` | | Usa `true` en producción con HTTPS |
+| `SESSION_COOKIE_SECURE` | | Usa `true` en producción con HTTPS (el perfil `prod` ya lo activa) |
+| `SESSION_IDLE_TIMEOUT` | | Cierre de sesión por inactividad (por defecto `30m`) |
+| `SESSION_MAX_LIFETIME` | | Duración máxima de una sesión aunque haya actividad (por defecto `8h`) |
+| `DB_QUERY_TIMEOUT_SECONDS` | | Tiempo máximo por consulta SQL; `0` = sin límite (por defecto `120`) |
+| `DB_ALLOWED_HOSTS` | | Servidores a los que se permite conectarse desde «Cambiar conexión». Vacío = cualquiera. Ej.: `db01.empresa.local,*.bd.empresa.local,sqlite` |
+| `DB_REQUIRE_TLS_VALIDATION` | | `true` obliga a validar el certificado TLS en las conexiones creadas desde la app (por defecto `false`) |
+| `APP_MASKED_COLUMNS` | | Columnas que se muestran como `******` en pantalla y en Excel. Ej.: `sueldo*,rut` (por defecto ninguna) |
+| `APP_ALLOWED_ORIGINS` | | Orígenes extra aceptados en peticiones que modifican datos (por defecto el servidor de desarrollo de Vite) |
+| `AUDIT_LOG_DIR` / `AUDIT_LOG_MAX_HISTORY` | | Carpeta y días de retención del registro de auditoría (por defecto `logs` / `365`) |
+| `SPRING_PROFILES_ACTIVE` | | `prod` detrás de un proxy HTTPS · `dev` para desarrollo local (ver [perfiles](#perfiles-de-configuración)) |
+
+Todas las variables nuevas son opcionales y sus valores por defecto mantienen el comportamiento habitual de la aplicación.
+
+#### Perfiles de configuración
+
+| Perfil | Cuándo usarlo | Qué cambia |
+|---|---|---|
+| *(ninguno)* | Uso general | Valores por defecto de la tabla anterior |
+| `dev` | Desarrollo local | Acepta el certificado autofirmado de un SQL Server local, sesión de 8 h por inactividad y logs en modo DEBUG |
+| `prod` | Detrás de un proxy inverso con HTTPS | Cookie `Secure`, cabecera HSTS, respeta `X-Forwarded-*` del proxy y oculta detalles de error y de salud |
 
 ### 2. Ejecutar
 
@@ -296,17 +317,18 @@ Completa el archivo `.env`, que **nunca se sube a git** (está en `.gitignore`):
 
 ```bash
 docker build -t multidb-workbook .
-docker run -d --name multidb-workbook -p 8080:8080 --env-file .env --restart unless-stopped multidb-workbook
+docker run -d --name multidb-workbook -p 8080:8080 --env-file .env \
+  -v multidb-audit:/app/logs --restart unless-stopped multidb-workbook
 ```
-Abre **http://localhost:8080**. Para verificar el estado: `curl http://localhost:8080/actuator/health`
+Abre **http://localhost:8080**. Para verificar el estado: `curl http://localhost:8080/actuator/health` (Docker también lo revisa solo con su `HEALTHCHECK`). El volumen `multidb-audit` conserva el registro de auditoría entre despliegues. En producción detrás de HTTPS agrega `-e SPRING_PROFILES_ACTIVE=prod`.
 </details>
 
 <details>
 <summary><b>Opción B · Desarrollo local (con recarga en caliente)</b></summary>
 
 ```bash
-# Terminal 1 · Backend (puerto 8080)
-./mvnw spring-boot:run
+# Terminal 1 · Backend (puerto 8080), con el perfil de desarrollo
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 
 # Terminal 2 · Frontend (puerto 5173, con proxy hacia el backend)
 cd frontend && npm install && npm run dev
@@ -322,7 +344,7 @@ cd frontend && npm ci && npm run build && cd ..
 rm -rf src/main/resources/static && mkdir -p src/main/resources/static
 cp -r frontend/dist/* src/main/resources/static/
 ./mvnw clean package -DskipTests
-java -jar target/PushDbTemplate-0.0.1-SNAPSHOT.jar
+java -jar target/PushDbTemplate-1.1.0.jar
 ```
 Ejecuta el `.jar` desde la carpeta que contiene el `.env`. Abre **http://localhost:8080**.
 </details>
@@ -405,17 +427,40 @@ Ejecuta el `.jar` desde la carpeta que contiene el `.env`. Abre **http://localho
 | Enumeración de usuarios | El mensaje de error de login es genérico y no indica si el usuario existe. |
 | Exposición de errores internos | Los errores se devuelven con un identificador de correlación, sin trazas ni SQL. |
 | Agotamiento de recursos | Límite de filas exportables, semáforo de exportaciones concurrentes y Excel en *streaming*. |
-| Contenedor | La imagen Docker se ejecuta con un usuario sin privilegios (`appuser`) y aplica *Content-Security-Policy*. |
+| Contenedor | La imagen Docker se ejecuta con un usuario sin privilegios (`appuser`), con `HEALTHCHECK` y apagado ordenado. |
+| Falsificación de peticiones (CSRF) | Además de `SameSite=Lax`, se rechazan las peticiones que modifican datos cuyo `Origin`/`Referer` no es la propia aplicación. |
+| Clickjacking y fuga de información en cabeceras | CSP con `frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, `Permissions-Policy` y HSTS sobre HTTPS. |
+| Sesiones abandonadas | Cierre por inactividad (30 min) y duración máxima absoluta (8 h). |
+| Uso del servidor para escanear la red interna | Lista opcional de servidores permitidos para «Cambiar conexión» (`DB_ALLOWED_HOSTS`), incluido el acceso a archivos SQLite. |
+| Intermediario en la conexión a la base | El certificado TLS se valida por defecto; `DB_REQUIRE_TLS_VALIDATION` lo exige también en las conexiones creadas desde la app. |
+| Consultas que bloquean la base | Tiempo máximo por consulta (`DB_QUERY_TIMEOUT_SECONDS`). |
+| Exposición de datos personales | Enmascaramiento opcional de columnas (`APP_MASKED_COLUMNS`) y Excel con autor, fecha y clasificación «Confidencial – uso interno». |
+| Trazabilidad | Registro de auditoría en `logs/audit.log`: inicios y cierres de sesión, intentos fallidos y bloqueados, cambios de conexión, exportaciones (con cantidad de filas), plantillas y relaciones. |
+| Dependencias vulnerables | `npm audit` en cada build, OWASP Dependency-Check semanal, Dependabot y SBOM CycloneDX incluido en el JAR. |
+
+El detalle de cada control frente a ISO/IEC 27001, 27002 y 25010 está en [docs/cumplimiento-iso.md](docs/cumplimiento-iso.md).
+
+#### Registro de auditoría
+
+Cada evento es una línea `clave=valor` en `logs/audit.log` (rotación diaria, 365 días por defecto). Nunca se registran contraseñas, valores de filtros ni datos de negocio:
+
+```
+2026-11-11T15:37:55.129-03:00 event=EXPORT_TABLE outcome=SUCCESS user=admin ip=10.0.0.5 table=dbo.Empleados columns=8 filtered=true rows=1520
+2026-11-11T15:41:02.004-03:00 event=LOGIN outcome=FAILURE user=admin ip=10.0.0.9 reason=BadCredentialsException
+```
 
 ---
 
 ## ✅ Calidad y pruebas
 
 ```bash
-./mvnw test                          # 218 pruebas de backend (JUnit 5 + MockMvc)
+./mvnw verify                        # 329 pruebas de backend + cobertura mínima de 80 % (JaCoCo)
 cd frontend && npm test              # 40 pruebas de frontend (Vitest + Testing Library)
 cd frontend && npm run lint          # análisis estático (oxlint)
+cd frontend && npm audit             # vulnerabilidades conocidas en dependencias
 ```
+
+El reporte de cobertura queda en `target/site/jacoco/index.html` y el SBOM en `target/classes/META-INF/sbom/application.cdx.json`. En GitHub, el workflow **CI** (`.github/workflows/ci.yml`) ejecuta todo lo anterior y construye la imagen Docker en cada push y pull request. El workflow **Security scan** corre OWASP Dependency-Check cada semana, y Dependabot propone actualizaciones de dependencias.
 
 Cubren autenticación y límite de intentos, controladores REST, metadatos y caché, relaciones, reportes multi-tabla, exportación a Excel, diagnóstico, conexiones dinámicas, dialectos SQL y utilidades del frontend (CSV seguro, conexiones guardadas, accesibilidad de modales).
 
@@ -426,12 +471,15 @@ Cubren autenticación y límite de intentos, controladores REST, metadatos y cac
 ```
 PushDbTemplate/
 ├── src/main/java/.../PushDbTemplate/
-│   ├── config/        Seguridad, límite de intentos, caché y persistencia propia
+│   ├── config/        Seguridad, auditoría, límite de intentos, filtros de origen y sesión, caché
 │   ├── controller/    API REST: /api/auth (acceso) y /api/db (datos y reportes)
-│   └── service/       Metadatos, relaciones, reportes, exportación, diagnóstico,
+│   └── service/       Metadatos, relaciones, reportes, exportación, enmascaramiento, diagnóstico,
 │       └── dialect/   un dialecto por motor (SQL Server, PostgreSQL, MySQL, MariaDB, Oracle, SQLite)
 ├── src/main/resources/
 │   ├── application.yaml        Configuración (lee el .env)
+│   ├── application-dev.yaml    Perfil de desarrollo local
+│   ├── application-prod.yaml   Perfil de producción (detrás de HTTPS)
+│   ├── logback-spring.xml      Logs + archivo de auditoría separado
 │   └── db/migration/           Migraciones Flyway
 ├── src/test/                   Pruebas de backend
 ├── frontend/
@@ -441,8 +489,13 @@ PushDbTemplate/
 │       ├── context/            Sesión (AuthContext) y notificaciones (ToastContext)
 │       ├── hooks/ · utils/     Accesibilidad de modales, CSV seguro, relaciones
 │       └── index.css           Sistema de diseño y responsive
-├── docs/screenshots/           Capturas del README
-├── Dockerfile                  Build multi-stage
+├── docs/
+│   ├── cumplimiento-iso.md     Controles ISO 27001/27002 y calidad ISO 25010
+│   └── screenshots/            Capturas del README
+├── .github/                    CI, escaneo de seguridad y Dependabot
+├── logs/                       Registro de auditoría (generado, no se versiona)
+├── CHANGELOG.md                Historial de versiones
+├── Dockerfile                  Build multi-stage con HEALTHCHECK
 └── .env.example                Plantilla de configuración
 ```
 
@@ -482,6 +535,18 @@ No. Sobre las tablas de negocio solo ejecuta consultas de lectura. Las únicas e
 </details>
 
 <details>
+<summary><b>¿Cómo sé quién descargó qué información?</b></summary>
+<br>
+En el registro de auditoría <code>logs/audit.log</code>: cada exportación queda con usuario, IP, tabla o reporte, cantidad de columnas y de filas, y la fecha. Además, el propio archivo Excel guarda quién lo exportó y cuándo (en Excel: <i>Archivo → Información → Propiedades</i>).
+</details>
+
+<details>
+<summary><b>Me pide iniciar sesión de nuevo después de un rato</b></summary>
+<br>
+Es intencional: la sesión se cierra tras 30 minutos sin actividad y, en cualquier caso, a las 8 horas. Quien administra la instalación puede ajustarlo con <code>SESSION_IDLE_TIMEOUT</code> y <code>SESSION_MAX_LIFETIME</code>.
+</details>
+
+<details>
 <summary><b>¿Pueden usarla varias personas al mismo tiempo?</b></summary>
 <br>
 No está pensada para eso. Tiene un solo usuario, y la conexión activa es común para toda la aplicación: si alguien cambia de base de datos, cambia para todos. Para un equipo, lo recomendable es que cada persona ejecute su propia instancia.
@@ -515,6 +580,7 @@ Para no saturar la base de datos, solo se permiten 2 exportaciones a la vez (<co
 | Una conexión activa común a toda la aplicación | Conexión independiente por sesión de usuario |
 | Sin recuperación de contraseña ni MFA | Flujo de recuperación y segundo factor de autenticación |
 | Montos sin separador de miles en la grilla | Formato numérico configurable por columna |
+| Las columnas enmascaradas aún se pueden usar en filtros y orden | Permisos por columna según rol |
 
 ---
 

@@ -39,13 +39,30 @@ public class ExcelExportService {
 
     private final Semaphore exportSemaphore;
     private final int maxConcurrentExports;
+    private final SensitiveColumnMasker masker;
+
+    /** Texto del pie de página y de la propiedad de clasificación de cada Excel exportado. */
+    static final String CLASSIFICATION = "Confidencial – uso interno";
 
     public ExcelExportService(DynamicDataSourceService dynamicDataSourceService,
                                SchemaMetadataService schemaMetadataService,
                                ForeignKeyService foreignKeyService,
                                CustomReportService customReportService,
+                               long maxExportRows,
+                               int maxConcurrentExports) {
+        this(dynamicDataSourceService, schemaMetadataService, foreignKeyService, customReportService,
+                maxExportRows, maxConcurrentExports, SensitiveColumnMasker.disabled());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ExcelExportService(DynamicDataSourceService dynamicDataSourceService,
+                               SchemaMetadataService schemaMetadataService,
+                               ForeignKeyService foreignKeyService,
+                               CustomReportService customReportService,
                                @Value("${app.export.max-rows:50000}") long maxExportRows,
-                               @Value("${app.export.max-concurrent:2}") int maxConcurrentExports) {
+                               @Value("${app.export.max-concurrent:2}") int maxConcurrentExports,
+                               SensitiveColumnMasker masker) {
+        this.masker = masker != null ? masker : SensitiveColumnMasker.disabled();
         this.dynamicDataSourceService = dynamicDataSourceService;
         this.schemaMetadataService = schemaMetadataService;
         this.foreignKeyService = foreignKeyService;
@@ -83,6 +100,29 @@ public class ExcelExportService {
             new org.springframework.jdbc.core.ArgumentPreparedStatementSetter(params).setValues(ps);
             return ps;
         }, handler);
+    }
+
+    /**
+     * Trazabilidad del archivo exportado (ISO/IEC 27002:2022 5.12 «Clasificación de la información»
+     * y 8.12 «Prevención de fuga de datos»): quién lo generó, cuándo y desde qué origen queda en
+     * las propiedades del documento (Archivo → Información en Excel), y cada hoja impresa lleva el
+     * pie «Confidencial – uso interno». No altera las celdas ni la estructura del reporte.
+     */
+    static void applyTraceability(org.apache.poi.xssf.streaming.SXSSFWorkbook workbook,
+                                  org.apache.poi.ss.usermodel.Sheet sheet, String source) {
+        String user = com.LectorDBTemplate.PushDbTemplate.config.AuditLog.currentUser();
+        String timestamp = java.time.OffsetDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString();
+        org.apache.poi.ooxml.POIXMLProperties props = workbook.getXSSFWorkbook().getProperties();
+        props.getCoreProperties().setCreator(user);
+        props.getCoreProperties().setTitle(source);
+        props.getCoreProperties().setDescription("Exportado desde Multi-DB Workbook por " + user + " el " + timestamp);
+        props.getCoreProperties().setCategory(CLASSIFICATION);
+        org.apache.poi.ooxml.POIXMLProperties.CustomProperties custom = props.getCustomProperties();
+        custom.addProperty("Clasificacion", CLASSIFICATION);
+        custom.addProperty("ExportadoPor", user);
+        custom.addProperty("FechaExportacion", timestamp);
+        sheet.getFooter().setCenter(CLASSIFICATION);
+        sheet.getFooter().setRight("Página &P de &N");
     }
 
     private static final char[] RISKY_SPREADSHEET_PREFIXES = {'=', '+', '-', '@', '\t', '\r'};
@@ -195,11 +235,11 @@ public class ExcelExportService {
         return resolved;
     }
 
-    public void exportTableToExcel(String schema, String tableName, List<String> selectedColumns, OutputStream outputStream) throws Exception {
-        exportTableToExcel(schema, tableName, selectedColumns, null, null, null, null, outputStream);
+    public long exportTableToExcel(String schema, String tableName, List<String> selectedColumns, OutputStream outputStream) throws Exception {
+        return exportTableToExcel(schema, tableName, selectedColumns, null, null, null, null, outputStream);
     }
 
-    public void exportTableToExcel(
+    public long exportTableToExcel(
             String schema,
             String tableName,
             List<String> selectedColumns,
@@ -207,10 +247,11 @@ public class ExcelExportService {
             String filterOperator,
             String filterValue,
             OutputStream outputStream) throws Exception {
-        exportTableToExcel(schema, tableName, selectedColumns, filterColumn, filterOperator, filterValue, null, outputStream);
+        return exportTableToExcel(schema, tableName, selectedColumns, filterColumn, filterOperator, filterValue, null, outputStream);
     }
 
-    public void exportTableToExcel(
+    /** @return cantidad de filas de datos escritas (para el registro de auditoría). */
+    public long exportTableToExcel(
             String schema,
             String tableName,
             List<String> selectedColumns,
@@ -292,6 +333,7 @@ public class ExcelExportService {
             try (org.apache.poi.xssf.streaming.SXSSFWorkbook workbook = new org.apache.poi.xssf.streaming.SXSSFWorkbook(100)) {
                 workbook.setCompressTempFiles(true);
                 org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Reporte");
+                applyTraceability(workbook, sheet, schema + "." + tableName);
 
                 org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
                 for (int i = 0; i < validatedColumns.size(); i++) {
@@ -308,6 +350,8 @@ public class ExcelExportService {
 
                         if (val == null) {
                             cell.setBlank();
+                        } else if (masker.isSensitive(colName)) {
+                            cell.setCellValue(SensitiveColumnMasker.MASK);
                         } else {
                             Map<String, String> lookup = fkLookups.get(colName);
                             String resolvedName = (lookup != null) ? applyFkLookup(val, lookup) : null;
@@ -328,13 +372,15 @@ public class ExcelExportService {
 
                 streamQuery(sql, queryParams.toArray(), rowWriter);
                 workbook.write(outputStream);
+                return nextRowIndex[0] - 1L;
             }
         } finally {
             exportSemaphore.release();
         }
     }
 
-    public void exportCustomReportToExcel(CustomReportQuery query, OutputStream outputStream) throws Exception {
+    /** @return cantidad de filas de datos escritas (para el registro de auditoría). */
+    public long exportCustomReportToExcel(CustomReportQuery query, OutputStream outputStream) throws Exception {
         if (!exportSemaphore.tryAcquire()) {
             throw new TooManyExportsException(
                 "Hay demasiadas exportaciones en curso (máximo " + maxConcurrentExports + " en paralelo permitido). " +
@@ -358,6 +404,7 @@ public class ExcelExportService {
             try (org.apache.poi.xssf.streaming.SXSSFWorkbook workbook = new org.apache.poi.xssf.streaming.SXSSFWorkbook(100)) {
                 workbook.setCompressTempFiles(true);
                 org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Reporte Personalizado");
+                applyTraceability(workbook, sheet, "Reporte personalizado");
 
                 org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
                 for (int i = 0; i < columns.size(); i++) {
@@ -372,6 +419,8 @@ public class ExcelExportService {
                         org.apache.poi.ss.usermodel.Cell cell = row.createCell(i - 1);
                         if (val == null) {
                             cell.setBlank();
+                        } else if (masker.isSensitive(columns.get(i - 1).column())) {
+                            cell.setCellValue(SensitiveColumnMasker.MASK);
                         } else if (val instanceof Number num) {
                             cell.setCellValue(num.doubleValue());
                         } else if (val instanceof Boolean b) {
@@ -384,6 +433,7 @@ public class ExcelExportService {
 
                 streamQuery(built.selectAllSql(), built.selectAllParams().toArray(), rowWriter);
                 workbook.write(outputStream);
+                return nextRowIndex[0] - 1L;
             }
         } finally {
             exportSemaphore.release();

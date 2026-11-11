@@ -1,0 +1,19 @@
+# Perfil de desarrollo local (SPRING_PROFILES_ACTIVE=dev).
+# Relaja únicamente lo que un entorno local necesita; nunca usar en producción.
+spring:
+  datasource:
+    # SQL Server local (p. ej. en Docker) usa un certificado autofirmado.
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=CL3530BD01MAP;encrypt=true;trustServerCertificate=true}
+
+server:
+  servlet:
+    session:
+      cookie:
+        # http://localhost no es HTTPS: una cookie Secure no viajaría.
+        secure: false
+      # Sesiones más largas para no reautenticarse en cada pausa mientras se desarrolla.
+      timeout: ${SESSION_IDLE_TIMEOUT:8h}
+
+logging:
+  level:
+    com.LectorDBTemplate: DEBUG

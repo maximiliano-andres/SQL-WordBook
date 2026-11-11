@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Sparkles, Check, RefreshCw, ArrowRightLeft } from 'lucide-react';
+import { Plus, Trash2, Sparkles, RefreshCw, ArrowRightLeft } from 'lucide-react';
 import { pickDescriptiveColumn } from '../../utils/reportBuilder';
 
 // PANEL IZQUIERDO del constructor de reportes: selector de tabla base, cadena
@@ -12,7 +12,6 @@ function JoinBuilderPanel({
   suggestedJoins,
   isLoadingSuggestions,
   columnsCache,
-  selectedColumns = [],
   onSelectBaseTable,
   onAddManualJoin,
   onApplySuggestedJoin,
