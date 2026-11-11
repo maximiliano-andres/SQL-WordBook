@@ -139,7 +139,7 @@ export default function LoginModal() {
       {/* Panel de marca e instructivo (lateral en escritorio, al pie en móvil) */}
       <aside className="login-aside" aria-label="Información de acceso">
         <div className="login-aside-brand">
-          <img src="/logo.png" alt="" className="login-aside-logo" />
+          <img src="/logo_max_andres_160.webp" alt="" className="login-aside-logo" width="44" height="66" />
           <div>
             <p className="login-aside-name">Multi-DB <span>Workbook</span></p>
             <p className="login-aside-tagline">Consulta, cruza y exporta tus datos de forma segura.</p>
@@ -182,7 +182,7 @@ export default function LoginModal() {
           tabIndex={-1}
         >
           <div className="login-brand-compact">
-            <img src="/logo.png" alt="" className="login-brand-compact-logo" />
+            <img src="/max_andres_head_256.webp" alt="" className="login-brand-compact-logo" width="40" height="40" />
             <span className="login-brand-compact-name">Multi-DB <span>Workbook</span></span>
           </div>
 

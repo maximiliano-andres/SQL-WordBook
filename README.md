@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="frontend/public/logo.png" alt="Logo Multi-DB Workbook" width="112" />
+<img src="frontend/public/max_andres_head_256.webp" alt="Logo Multi-DB Workbook" width="140" />
 
 # Multi-DB Workbook
 
@@ -435,6 +435,7 @@ PushDbTemplate/
 │   └── db/migration/           Migraciones Flyway
 ├── src/test/                   Pruebas de backend
 ├── frontend/
+│   ├── public/                 Logos y favicon (ver «Identidad visual»)
 │   └── src/
 │       ├── components/         Login, Ribbon, grilla, pestañas, modales y constructor de reportes
 │       ├── context/            Sesión (AuthContext) y notificaciones (ToastContext)
@@ -444,6 +445,31 @@ PushDbTemplate/
 ├── Dockerfile                  Build multi-stage
 └── .env.example                Plantilla de configuración
 ```
+
+### 🎨 Identidad visual
+
+Los logos viven en `frontend/public/` y Vite los copia tal cual al build (`dist/` → `src/main/resources/static/`), por lo que se referencian con rutas absolutas (`/archivo`).
+
+<table>
+  <tr>
+    <td align="center"><img src="frontend/public/favicon-64.png" alt="Favicon" width="48" /></td>
+    <td align="center"><img src="frontend/public/max_andres_head_256.webp" alt="Logo cabeza" width="96" /></td>
+    <td align="center"><img src="frontend/public/logo_max_andres_160.webp" alt="Logo cuerpo completo" width="72" /></td>
+  </tr>
+  <tr>
+    <td align="center"><code>favicon-64.png</code><br>64 × 58 px · PNG</td>
+    <td align="center"><code>max_andres_head_256.webp</code><br>256 × 234 px · WebP</td>
+    <td align="center"><code>logo_max_andres_160.webp</code><br>107 × 160 px · WebP</td>
+  </tr>
+</table>
+
+| Archivo | Dónde se usa |
+| :-- | :-- |
+| `favicon-64.png` | Ícono de la pestaña del navegador (`frontend/index.html`) |
+| `max_andres_head_256.webp` | Barra superior (`Ribbon.jsx`), marca compacta del login en móvil (`LoginModal.jsx`), `apple-touch-icon` y encabezado de este README |
+| `logo_max_andres_160.webp` | Panel lateral de la pantalla de acceso (`LoginModal.jsx`) |
+
+Para reemplazar un logo basta con sobrescribir el archivo manteniendo su nombre; si cambia el nombre o la proporción, actualiza las referencias anteriores y las medidas en `frontend/src/index.css` (`.excel-logo`, `.login-aside-logo`, `.login-brand-compact-logo`). Luego recompila el frontend.
 
 ---
 

@@ -3188,8 +3188,9 @@ textarea.excel-input {
   gap: 14px;
 }
 .login-aside-logo {
-  width: 52px;
-  height: 52px;
+  /* Mascota de cuerpo completo (formato vertical 2:3) */
+  width: 44px;
+  height: 66px;
   object-fit: contain;
   flex-shrink: 0;
 }

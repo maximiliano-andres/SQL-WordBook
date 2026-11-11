@@ -67,7 +67,7 @@ export default function Ribbon({
       {/* Barra superior de identificación */}
       <div className="ribbon-top-bar">
         <div className="excel-logo-area">
-          <img src="/logo.png" alt="Logo" className="excel-logo" />
+          <img src="/max_andres_head_256.webp" alt="Logo Multi-DB Workbook" className="excel-logo" width="28" height="28" />
           <h1 className="app-title">Multi-DB <span className="app-title-suffix">Workbook</span></h1>
         </div>
 
