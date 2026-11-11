@@ -42,7 +42,7 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
-		<jacoco.version>0.8.13</jacoco.version>
+		<jacoco.version>0.8.16</jacoco.version>
 		<!-- Cobertura mínima de líneas exigida en "mvn verify" (ISO/IEC 25010 Mantenibilidad) -->
 		<jacoco.minimum.line.coverage>0.80</jacoco.minimum.line.coverage>
 	</properties>
