@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Table, FileSpreadsheet, Link2, Check, X, Edit2, Trash2, Filter } from 'lucide-react';
+import { Table, FileSpreadsheet, Link2, Check, X, Edit2, Trash2, Filter, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fkStatusText } from '../utils/fk';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 // Extraído de Spreadsheet: el panel de filtros tiene su propio estado local que
 // cambia con cada tecla escrita. Si viviera dentro de Spreadsheet, cada tecla
@@ -241,9 +242,17 @@ export default function Spreadsheet({
   onDeleteCustomFk = () => {},
   appliedFilter = null,
   onApplyFilter = () => {},
-  uxMode = 'simple'
+  uxMode = 'simple',
+  // Accesos cercanos a la grilla (Ley de Fitts): reutilizan los mismos handlers del Ribbon.
+  page = 1,
+  totalPages = 1,
+  onPrevPage,
+  onNextPage,
+  onExportExcel,
+  canExportExcel = false
 }) {
   const { apiFetch } = useAuth();
+  const { confirm } = useToast();
   const [activeTab, setActiveTab] = useState('data'); // 'data' o 'schema'
   const [editingColName, setEditingColName] = useState(null);
   const [selectedTargetTableKey, setSelectedTargetTableKey] = useState("");
@@ -344,6 +353,21 @@ export default function Spreadsheet({
           </div>
         </div>
         
+        <div className="sheet-header-actions">
+        {/* Acceso directo a la acción principal (misma función que Descargar Reporte → Exportar a Excel) */}
+        {onExportExcel && (
+          <button
+            className="excel-btn primary sheet-export-btn"
+            onClick={onExportExcel}
+            disabled={!canExportExcel}
+            title="Descargar la tabla completa en Excel (.xlsx), con los filtros y columnas seleccionadas"
+          >
+            <Download size={14} />
+            <span className="label-long">Descargar Excel</span>
+            <span className="label-short">Excel</span>
+          </button>
+        )}
+
         {/* Pestañas de Vista: Registros / Estructura */}
         <div className="sheet-view-toggle" role="tablist">
           <button 
@@ -368,6 +392,7 @@ export default function Spreadsheet({
             <span className="label-long">Estructura de Columnas</span>
             <span className="label-short">Estructura</span>
           </button>
+        </div>
         </div>
       </div>
 
@@ -741,7 +766,14 @@ export default function Spreadsheet({
                                       className="fk-action-btn"
                                       aria-label="Eliminar relación"
                                       title="Eliminar permanentemente esta relación y volver a mostrar el ID crudo original"
-                                      onClick={() => onDeleteCustomFk(col.name, fk)}
+                                      onClick={() => confirm({
+                                        title: '¿Eliminar esta relación?',
+                                        message: `La columna "${col.name}" volverá a mostrar el código original en lugar del valor traducido.`,
+                                        confirmText: 'Eliminar',
+                                        cancelText: 'Cancelar',
+                                        type: 'danger',
+                                        onConfirm: () => onDeleteCustomFk(col.name, fk)
+                                      })}
                                     >
                                       <Trash2 size={12} />
                                     </button>
@@ -777,6 +809,36 @@ export default function Spreadsheet({
           </div>
         )}
       </div>
+
+      {/* Paginación junto al final de la grilla (Ley de Fitts): evita subir hasta el Ribbon
+          para pasar de página. Mismos handlers y mismas condiciones que los botones del Ribbon. */}
+      {activeTab === 'data' && !error && data.length > 0 && onPrevPage && onNextPage && (
+        <div className="grid-pager" aria-label="Paginación de registros">
+          <span className="grid-pager-info">
+            Página <strong>{page}</strong> de <strong>{(totalPages || 1).toLocaleString('es-CL')}</strong>
+          </span>
+          <div className="grid-pager-buttons">
+            <button
+              className="excel-btn"
+              onClick={onPrevPage}
+              disabled={page <= 1 || isDataLoading}
+              aria-label="Página anterior"
+            >
+              <ChevronLeft size={16} />
+              <span className="btn-label">Anterior</span>
+            </button>
+            <button
+              className="excel-btn"
+              onClick={onNextPage}
+              disabled={page >= totalPages || isDataLoading}
+              aria-label="Página siguiente"
+            >
+              <span className="btn-label">Siguiente</span>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

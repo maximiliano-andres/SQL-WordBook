@@ -4931,3 +4931,119 @@ textarea.excel-input {
   background-color: var(--excel-green-light);
   box-shadow: 0 0 0 3px rgba(33, 163, 102, 0.18);
 }
+
+/* ==========================================================================
+   LEY DE FITTS: objetivos de clic más grandes y acciones frecuentes más cerca
+   ========================================================================== */
+
+/* (1) Eliminar cruce / condición / plantilla: de 19 px a 28 px, con separación del vecino */
+.cr-icon-btn {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 6px;
+  flex-shrink: 0;
+}
+.cr-rule-row .cr-icon-btn.danger,
+.cr-join-header .cr-icon-btn.danger,
+.cr-template-actions .cr-icon-btn.danger { margin-left: 4px; }
+
+/* (4) Interruptor "Traducir": zona clicable de al menos 28 px de alto sin cambiar su aspecto */
+.excel-switch {
+  box-sizing: content-box;
+  padding: 5px 4px;
+  margin-left: 4px;
+  cursor: pointer;
+}
+.excel-switch-slider {
+  top: 5px;
+  left: 4px;
+  right: 4px;
+  bottom: 5px;
+}
+
+/* (5) Acciones de columna del reporte: más grandes y "Quitar" separado de "Reemplazar" */
+.cr-col-btn { min-width: 28px; min-height: 28px; }
+.cr-col-order-actions { gap: 4px; }
+.cr-col-btn.delete-col {
+  margin-left: 6px;
+  position: relative;
+}
+.cr-col-btn.delete-col::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background-color: var(--excel-border);
+}
+
+/* (6) Editar y Eliminar relación: más grandes y con más distancia entre sí */
+.fk-action-btn { min-width: 30px; min-height: 30px; }
+.fk-relation-actions { gap: 8px; }
+.fk-relation-actions .fk-action-btn[aria-label="Eliminar relación"] { margin-left: 8px; }
+
+/* (7) Cerrar sesión: de 18 px a 28 px */
+.user-logout-btn { min-width: 28px; min-height: 28px; }
+
+/* (3) Acceso directo "Descargar Excel" en la cabecera de la hoja */
+.sheet-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+.sheet-export-btn { min-height: 38px; padding: 0 16px; }
+
+/* (2) Paginación al pie de la grilla */
+.grid-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: 4px var(--gutter);
+  border-top: 1px solid var(--excel-border);
+  background-color: var(--excel-bg-sidebar);
+  flex-shrink: 0;
+}
+.grid-pager-info {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.grid-pager-buttons { display: flex; gap: var(--space-2); }
+.grid-pager .excel-btn { min-width: 40px; }
+
+/* En móvil la paginación del Ribbon ya queda cerca de la grilla: se evita duplicarla y restar alto */
+@media (max-width: 599px) {
+  .grid-pager { display: none; }
+  /* En móvil la pestaña «Descargar Reporte» queda al alcance del pulgar; se evita una
+     tercera fila en la cabecera que restaría alto a la grilla */
+  .sheet-export-btn { display: none; }
+}
+@media (max-height: 500px) and (max-width: 1023px) {
+  .grid-pager { display: none; }
+}
+
+/* (8) Pantallas táctiles: navegación secundaria a 40 px (recomendación Apple/Material ≈ 44–48) */
+@media (pointer: coarse) {
+  .ribbon-tab,
+  .conn-tab,
+  .cr-subnav-btn,
+  .manual-tab-btn { min-height: 40px; }
+  .sheet-nav-btn { min-width: 36px; }
+  .sheet-tab { height: 36px; }
+  .sheet-view-toggle .excel-btn,
+  .view-mode-btn,
+  .ux-mode-btn,
+  .fk-mode-btn,
+  .cr-view-pill { min-height: 36px; }
+  .excel-btn--xs { min-height: 36px; }
+  .cr-col-btn,
+  .cr-icon-btn,
+  .fk-action-btn,
+  .user-logout-btn { min-width: 36px; min-height: 36px; }
+  .excel-switch { padding: 9px 6px; }
+  .excel-switch-slider { top: 9px; bottom: 9px; left: 6px; right: 6px; }
+}

@@ -519,6 +519,12 @@ function AppContent() {
             appliedFilter={appliedFilter}
             onApplyFilter={(filter) => { setAppliedFilter(filter); setPage(1); }}
             uxMode={uxMode}
+            page={page}
+            totalPages={totalPages}
+            onPrevPage={handlePrevPage}
+            onNextPage={handleNextPage}
+            onExportExcel={handleExportExcel}
+            canExportExcel={!isDataLoading && selectedColumns.length > 0}
           />
 
           {/* Pestañas de Hojas Inferiores (Lista de Tablas) */}
